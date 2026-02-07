@@ -1,0 +1,96 @@
+{
+    "minecraft:bamboo" : {
+        "age" : "1"
+    },
+    "minecraft:beetroots" : {
+        "age" : "3"
+    },
+    "minecraft:cactus" : {
+        "age" : "15"
+    },
+    "minecraft:carrots": {
+        "age": "7"
+    },
+    "minecraft:cave_vines": {
+        "age": "25",
+        "berries": "true"
+    },
+    "minecraft:chorus_flower": {
+        "age": "5"
+    },
+    "minecraft:cocoa": {
+        "age": "2"
+    },
+    "minecraft:fire": {
+        "age": "15"
+    },
+    "minecraft:frosted_ice": {
+        "age": "3"
+    },
+    "minecraft:kelp": {
+        "age": "25"
+    },
+    "minecraft:mangrove_propagule": {
+        "age": "4"
+    },
+    "minecraft:melon_stem": {
+        "age": "7"
+    },
+    "minecraft:nether_wart": {
+        "age": "3"
+    },
+    "minecraft:pitcher_crop": {
+        "age": "4"
+    },
+    "minecraft:potatoes": {
+        "age": "7"
+    },
+    "minecraft:pumpkin_stem": {
+        "age": "7"
+    },
+    "minecraft:sugar_cane": {
+        "age": "15"
+    },
+    "minecraft:sweet_berry_bush": {
+        "age": "3"
+    },
+    "minecraft:torchflower_crop": {
+        "age": "1"
+    },
+    "minecraft:twisting_vines": {
+        "age": "25"
+    },
+    "minecraft:weeping_vines": {
+        "age": "25"
+    },
+    "minecraft:wheat": {
+        "age": "7"
+    },
+    "minecraft:composter": {
+        "level": "0"
+    },
+    "minecraft:lava": {
+        "level": "15"
+    },
+    "minecraft:light": {
+        "level": "0"
+    },
+    "minecraft:powder_snow_cauldron": {
+        "level": "3"
+    },
+    "minecraft:water": {
+        "level": "15"
+    },
+    "minecraft:water_cauldron": {
+        "level": "3"
+    },
+    "minecraft:scaffolding": {
+        "bottom": "true"
+    },
+    "minecraft:structure_block": {
+        "mode": "save"
+    },
+    "minecraft:comparator": {
+        "mode": "compare"
+    }
+}

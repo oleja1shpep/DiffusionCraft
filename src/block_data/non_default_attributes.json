@@ -1,0 +1,160 @@
+{
+    "attached": [
+        "false",
+        "true"
+    ],
+    "attachment": [
+        "ceiling",
+        "double_wall",
+        "floor",
+        "single_wall"
+    ],
+    "axis": [
+        "x",
+        "y",
+        "z"
+    ],
+    "down": [
+        "false",
+        "true"
+    ],
+    "east": [
+        "false",
+        "true",
+        "low",
+        "none",
+        "tall",
+        "side",
+        "up"
+    ],
+    "face": [
+        "ceiling",
+        "floor",
+        "wall"
+    ],
+    "facing": [
+        "east",
+        "north",
+        "south",
+        "west",
+        "down",
+        "up"
+    ],
+    "half": [
+        "lower",
+        "upper",
+        "bottom",
+        "top"
+    ],
+    "hanging": [
+        "false",
+        "true"
+    ],
+    "hinge": [
+        "left",
+        "right"
+    ],
+    "in_wall": [
+        "false",
+        "true"
+    ],
+    "north": [
+        "false",
+        "true",
+        "low",
+        "none",
+        "tall",
+        "side",
+        "up"
+    ],
+    "part": [
+        "foot",
+        "head"
+    ],
+    "rotation": [
+        "0",
+        "1",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9"
+    ],
+    "shape": [
+        "inner_left",
+        "inner_right",
+        "outer_left",
+        "outer_right",
+        "straight",
+        "ascending_east",
+        "ascending_north",
+        "ascending_south",
+        "ascending_west",
+        "east_west",
+        "north_south",
+        "north_east",
+        "north_west",
+        "south_east",
+        "south_west"
+    ],
+    "snowy": [
+        "false",
+        "true"
+    ],
+    "south": [
+        "false",
+        "true",
+        "low",
+        "none",
+        "tall",
+        "side",
+        "up"
+    ],
+    "thickness": [
+        "base",
+        "frustum",
+        "middle",
+        "tip",
+        "tip_merge"
+    ],
+    "type": [
+        "bottom",
+        "double",
+        "top",
+        "left",
+        "right",
+        "single",
+        "normal",
+        "sticky"
+    ],
+    "up": [
+        "false",
+        "true"
+    ],
+    "vertical_direction": [
+        "down",
+        "up"
+    ],
+    "waterlogged": [
+        "false",
+        "true"
+    ],
+    "west": [
+        "false",
+        "true",
+        "low",
+        "none",
+        "tall",
+        "side",
+        "up"
+    ]
+}

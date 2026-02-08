@@ -23,7 +23,7 @@ def create_parser():
     parser = argparse.ArgumentParser(description="Generate world dataset")
 
     parser.add_argument(
-        "--world",
+        "--world-dir",
         required=True,
     )
 
@@ -139,7 +139,7 @@ def main(args):
     minx, maxx = -args.rx, args.rx
     minz, maxz = -args.rz, args.rz
 
-    level = load_level(args.world)
+    level = load_level(args.world_dir)
     output_dir_path = os.path.join(".", args.output_dir)
     os.makedirs(output_dir_path, exist_ok=True)
     for i in tqdm(range(args.n_samples)):

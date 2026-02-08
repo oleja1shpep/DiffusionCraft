@@ -2,8 +2,11 @@ import logging
 import random
 from typing import List
 
+import numpy as np
 import torch
 from torch.utils.data import Dataset
+
+from src.utils.io_utils import read_json
 
 logger = logging.getLogger(__name__)
 
@@ -56,11 +59,16 @@ class BaseDataset(Dataset):
                 (a single dataset element).
         """
         data_dict = self._index[ind]
-        data_path = data_dict["path"]
-        data_object = self.load_object(data_path)
-        data_label = data_dict["label"]
+        block_type_path = data_dict["block_type_path"]
+        attributes_path = data_dict["attributes_path"]
 
-        instance_data = {"data_object": data_object, "labels": data_label}
+        block_type_grid: torch.Tensor = self.load_tensor(block_type_path)
+        attributes_data: dict[str, int] = read_json(attributes_path)
+
+        instance_data = {
+            "block_type_grid": block_type_grid,
+            "attributes_data": attributes_data,
+        }
         instance_data = self.preprocess_data(instance_data)
 
         return instance_data
@@ -71,17 +79,16 @@ class BaseDataset(Dataset):
         """
         return len(self._index)
 
-    def load_object(self, path):
+    def load_tensor(self, path: str) -> torch.Tensor:
         """
-        Load object from disk.
+        Load tensor from .npy file.
 
         Args:
             path (str): path to the object.
         Returns:
-            data_object (Tensor):
+            Tensor:
         """
-        data_object = torch.load(path)
-        return data_object
+        return torch.from_numpy(np.load(path))
 
     def preprocess_data(self, instance_data):
         """
@@ -139,12 +146,13 @@ class BaseDataset(Dataset):
                 such as label and object path.
         """
         for entry in index:
-            assert "path" in entry, (
-                "Each dataset item should include field 'path'" " - path to audio file."
+            assert "block_type_path" in entry, (
+                "Each dataset item should include field 'block_type_path'"
+                " - path to block type grid file."
             )
-            assert "label" in entry, (
-                "Each dataset item should include field 'label'"
-                " - object ground-truth label."
+            assert "attributes_path" in entry, (
+                "Each dataset item should include field 'attributes_path'"
+                " - path to atrribute data json file."
             )
 
     @staticmethod

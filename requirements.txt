@@ -1,6 +1,5 @@
 torch==2.2.0
 torchvision==0.17.0
-torchmetrics
 numpy==1.26.4
 tqdm
 matplotlib
@@ -8,6 +7,10 @@ pandas
 wandb
 comet_ml
 hydra-core
+amulet-core==1.9.32
+nbtlib==2.0.4
+mcschematic==11.4.3
+immutable-views==0.6.1
 
 black
 isort

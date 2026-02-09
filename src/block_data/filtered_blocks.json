@@ -3796,15 +3796,6 @@
             "true"
         ]
     },
-    "minecraft:frogspawn": {},
-    "minecraft:frosted_ice": {
-        "age": [
-            "0",
-            "1",
-            "2",
-            "3"
-        ]
-    },
     "minecraft:furnace": {
         "facing": [
             "east",

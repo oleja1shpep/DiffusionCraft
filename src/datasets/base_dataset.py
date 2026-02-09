@@ -63,7 +63,7 @@ class BaseDataset(Dataset):
         attributes_path = data_dict["attributes_path"]
 
         block_type_grid: torch.Tensor = self.load_tensor(block_type_path)
-        attributes_data: dict[str, int] = read_json(attributes_path)
+        attributes_data: dict[str, dict[str, int]] = read_json(attributes_path)
 
         instance_data = {
             "block_type_grid": block_type_grid,

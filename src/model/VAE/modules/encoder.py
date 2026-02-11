@@ -56,8 +56,8 @@ class AttributeEncoder(nn.Module):
 
         # need to optimize somehow but the structure of data is too complex
         for b in len(attributes_data):
-            for coords in attributes_data:
-                attr_dict = attributes_data[coords]
+            for coords in attributes_data[b]:
+                attr_dict = attributes_data[b][coords]
                 x, y, z = list(map(int, coords.split("_")))
                 block_idx = block_type_grid[b, x, y, z]
                 block_type = self.idx2block[block_idx.item()]

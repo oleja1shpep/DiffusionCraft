@@ -38,11 +38,11 @@ class SDVAE(nn.Module):
         # features_reconstructed = self.upsample(latents).permute(0, 2, 3, 4, 1) # (B, W', H', L', D)
         features_reconstructed = features[:, :W, :H, :L]
 
-        reconstructed_block_type_grid = self.block_decoder(features_reconstructed)
-        reconstructed_attributes_values = self.attr_decoder(
-            **batch, features=features_reconstructed
-        )
+        block_type_logits = self.block_decoder(features_reconstructed)
+        attributes_logits = self.attr_decoder(**batch, features=features_reconstructed)
+
         return {
-            "reconstructed_block_type_grid": reconstructed_block_type_grid,
-            "reconstructed_attributes_values": reconstructed_attributes_values,
+            "block_type_logits": block_type_logits,
+            "attributes_logits": attributes_logits,
+            "pred_block_type_grid": block_type_logits.argmax(-1),
         }

@@ -27,7 +27,7 @@ class BaseDataset(Dataset):
         limit=None,
         shuffle_index=False,
         instance_transforms=None,
-        path_to_block_data="src/block_data",
+        block_data_path="src/block_data",
     ):
         """
         Args:
@@ -50,7 +50,7 @@ class BaseDataset(Dataset):
         self.instance_transforms = instance_transforms
 
         self.non_default_attribute_pairs = read_json(
-            ROOT_PATH / path_to_block_data / "non_default_attribute_pairs.json"
+            ROOT_PATH / block_data_path / "non_default_attribute_pairs.json"
         )
 
     def __getitem__(self, ind):
@@ -72,7 +72,9 @@ class BaseDataset(Dataset):
         structire_path = Path(data_dict["structire_path"])
 
         block_type_path = structire_path / f"{BLOCK_TYPE}.pt"
-        block_type_grid: torch.Tensor = torch.load(block_type_path).to(torch.long)
+        block_type_grid: torch.Tensor = torch.load(
+            block_type_path, weights_only=False
+        ).to(torch.long)
 
         attributes_values = dict()
         attributes_masks = dict()
@@ -81,10 +83,10 @@ class BaseDataset(Dataset):
             head_key = get_head_key(attr, values)
 
             attributes_values[head_key] = torch.load(
-                structire_path / head_key / "values.pt"
+                structire_path / head_key / "values.pt", weights_only=False
             ).to(torch.long)
             attributes_masks[head_key] = torch.load(
-                structire_path / head_key / "mask.pt"
+                structire_path / head_key / "mask.pt", weights_only=False
             )
 
         instance_data = {

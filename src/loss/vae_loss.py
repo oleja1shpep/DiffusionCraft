@@ -10,7 +10,7 @@ class AttributeLoss(nn.Module):
     def forward(
         self,
         attributes_values: dict[str, torch.Tensor],
-        reconstructed_attributes_values: dict[str, torch.Tensor],
+        attributes_logits: dict[str, torch.Tensor],
         **batch,
     ):
         """
@@ -24,11 +24,9 @@ class AttributeLoss(nn.Module):
         """
         loss_dict = dict()
         for key in attributes_values:
-            if len(reconstructed_attributes_values[key]) and len(
-                attributes_values[key]
-            ):
+            if len(attributes_logits[key]) and len(attributes_values[key]):
                 loss_dict[f"{key}_loss"] = self.loss(
-                    input=reconstructed_attributes_values[key],
+                    input=attributes_logits[key],
                     target=attributes_values[key],
                 )
             else:
@@ -47,7 +45,7 @@ class BlockTypeLoss(nn.Module):
     def forward(
         self,
         block_type_grid: torch.Tensor,
-        reconstructed_block_type_grid: torch.Tensor,
+        block_type_logits: torch.Tensor,
         **batch,
     ) -> dict[str, torch.Tensor]:
         """
@@ -61,7 +59,7 @@ class BlockTypeLoss(nn.Module):
         """
         return {
             "block_type_loss": self.loss(
-                input=reconstructed_block_type_grid.permute(0, 4, 1, 2, 3),
+                input=block_type_logits.permute(0, 4, 1, 2, 3),
                 target=block_type_grid,
             )
         }

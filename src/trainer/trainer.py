@@ -1,5 +1,10 @@
+import numpy as np
+import torch
+from PIL import Image
+
 from src.metrics.tracker import MetricTracker
 from src.trainer.base_trainer import BaseTrainer
+from src.utils.model_utils import render_block_grid
 
 
 class Trainer(BaseTrainer):
@@ -34,18 +39,22 @@ class Trainer(BaseTrainer):
             metric_funcs = self.metrics["train"]
             self.optimizer.zero_grad()
 
-        outputs = self.model(**batch)
-        batch.update(outputs)
+        with torch.amp.autocast(self.device, dtype=torch.float16):
+            outputs = self.model(**batch)
+            batch.update(outputs)
 
-        all_losses = self.criterion(**batch)
-        batch.update(all_losses)
+            all_losses = self.criterion(**batch)
+            batch.update(all_losses)
 
-        if self.is_train:
-            batch["loss"].backward()  # sum of all losses is always called loss
-            self._clip_grad_norm()
-            self.optimizer.step()
-            if self.lr_scheduler is not None:
-                self.lr_scheduler.step()
+            if self.is_train:
+                self.scaler.scale(
+                    batch["loss"]
+                ).backward()  # sum of all losses is always called loss
+                self._clip_grad_norm()
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+                if self.lr_scheduler is not None:
+                    self.lr_scheduler.step()
 
         # update metrics for each loss (in case of multiple losses)
         for loss_name in self.config.writer.loss_names:
@@ -72,8 +81,25 @@ class Trainer(BaseTrainer):
 
         # logging scheme might be different for different partitions
         if mode == "train":  # the method is called only every self.log_step steps
-            # Log Stuff
-            pass
+            self.log_structure_render(**batch)
         else:
-            # Log Stuff
-            pass
+            self.log_structure_render(**batch)
+
+    def log_structure_render(
+        self, block_type_grid: torch.Tensor, pred_block_type_grid: torch.Tensor, **batch
+    ):
+        block_type_grid = block_type_grid[0].detach().cpu().numpy()
+        pred_block_type_grid = pred_block_type_grid[0].detach().cpu().numpy()
+
+        gt_render: Image.Image = render_block_grid(
+            block_type_grid, self.block2color, self.idx2block
+        )
+        pred_render = render_block_grid(
+            pred_block_type_grid, self.block2color, self.idx2block
+        )
+
+        self.writer.add_image("gt_render", gt_render)
+        self.writer.add_image("pred_render", pred_render)
+
+        gt_render.close()
+        pred_render.close()

@@ -7,7 +7,7 @@ from tqdm.auto import tqdm
 
 from src.datasets.data_utils import inf_loop
 from src.metrics.tracker import MetricTracker
-from src.utils.io_utils import ROOT_PATH
+from src.utils.io_utils import ROOT_PATH, read_json
 
 
 class BaseTrainer:
@@ -30,6 +30,7 @@ class BaseTrainer:
         epoch_len=None,
         skip_oom=True,
         batch_transforms=None,
+        block_data_path="src/block_data",
     ):
         """
         Args:
@@ -141,6 +142,11 @@ class BaseTrainer:
 
         if config.trainer.get("from_pretrained") is not None:
             self._from_pretrained(config.trainer.get("from_pretrained"))
+
+        self.block2color = read_json(ROOT_PATH / block_data_path / "block2color.json")
+        self.idx2block = read_json(ROOT_PATH / block_data_path / "idx2block.json")
+
+        self.scaler = torch.amp.GradScaler(device=device)
 
     def train(self):
         """

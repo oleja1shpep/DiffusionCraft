@@ -1,0 +1,4 @@
+train:
+  _target_: src.datasets.VAEDataset
+  limit: 4
+  name: "train"

@@ -1,1 +1,1 @@
-from src.datasets.example import ExampleDataset
+from src.datasets.vae_dataset import VAEDataset

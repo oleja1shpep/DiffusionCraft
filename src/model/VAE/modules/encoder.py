@@ -5,6 +5,7 @@ import torch
 from torch import nn
 
 from src.utils.io_utils import ROOT_PATH, read_json
+from src.utils.model_utils import get_head_key
 
 
 class AttributeEncoder(nn.Module):
@@ -19,19 +20,19 @@ class AttributeEncoder(nn.Module):
 
         self.D = emb_dim
 
-        path_to_block_data = Path(path_to_block_data)
-
         self.non_default_attribute_pairs = read_json(
-            path_to_block_data / "non_default_attribute_pairs.json"
+            ROOT_PATH / path_to_block_data / "non_default_attribute_pairs.json"
         )
-        self.filtered_blocks = read_json(path_to_block_data / "filtered_blocks.json")
-        self.idx2block = read_json(path_to_block_data / "idx2block.json")
+        self.filtered_blocks = read_json(
+            ROOT_PATH / path_to_block_data / "filtered_blocks.json"
+        )
+        self.idx2block = read_json(ROOT_PATH / path_to_block_data / "idx2block.json")
 
         self.heads = nn.ModuleDict()
 
         for pair in self.non_default_attribute_pairs:
             attr, values = pair
-            key = f"{attr}:{sorted(values)}"
+            key = get_head_key(attr, values)
             self.heads[key] = nn.Embedding(
                 num_embeddings=len(values), embedding_dim=self.D
             )
@@ -39,7 +40,7 @@ class AttributeEncoder(nn.Module):
     def forward(
         self,
         block_type_grid: torch.Tensor,
-        attributes_data: list[dict[str, dict[str, int]]],
+        attributes_data: list[dict[str, dict[str, torch.Tensor]]],
         **batch,
     ):
         """
@@ -52,10 +53,10 @@ class AttributeEncoder(nn.Module):
             output (Tensor): a tensor of shape (B, W, H, L, D) representing the encoded attribute grid.
         """
         B, W, H, L = block_type_grid.shape
-        output = torch.zeros(B, W, H, L, self.D)
+        output = torch.zeros(B, W, H, L, self.D, device=block_type_grid.device)
 
-        # need to optimize somehow but the structure of data is too complex
-        for b in len(attributes_data):
+        # FIXME need to optimize somehow but the structure of data is too complex
+        for b in range(len(attributes_data)):
             for coords in attributes_data[b]:
                 attr_dict = attributes_data[b][coords]
                 x, y, z = list(map(int, coords.split("_")))
@@ -73,8 +74,7 @@ class AttributeEncoder(nn.Module):
                     assert (
                         key in self.heads
                     ), f"Attribute pair '{key}' must be present in heads' keys."
-
-                    output[b, x, y, z] += self.heads[key](block_idx)
+                    output[b, x, y, z] += self.heads[key](attr_dict[attr])
 
         return output
 
@@ -91,7 +91,9 @@ class BlockTypeEncoder(nn.Module):
         super().__init__()
 
         self.D = emb_dim
-        self.num_blocks = len(read_json(path_to_block_data / "idx2block.json"))
+        self.num_blocks = len(
+            read_json(ROOT_PATH / path_to_block_data / "idx2block.json")
+        )
 
         self.head = nn.Embedding(self.num_blocks, self.D)
 

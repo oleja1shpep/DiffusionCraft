@@ -1,6 +1,7 @@
 import argparse
 import os
 from bisect import bisect_left
+from pathlib import Path
 from random import randint
 
 from amulet import SelectionBox, SelectionGroup, load_level
@@ -46,12 +47,6 @@ def create_parser():
 
     parser.add_argument(
         "--n-samples",
-        required=True,
-        type=int,
-    )
-
-    parser.add_argument(
-        "--n-workers",
         required=True,
         type=int,
     )
@@ -122,13 +117,13 @@ def save_selection(level, selection, path):
     wrapper.close()
 
 
-def create_sample(level, minx, maxx, minz, maxz, output_dir_path, index):
+def create_sample(level, world_name, minx, maxx, minz, maxz, output_dir_path, index):
     dimensions = generate_dimensions(level, minx, maxx, minz, maxz)
     if not dimensions:
         return
     x1, x2, y1, y2, z1, z2 = dimensions
     output_path = os.path.join(
-        output_dir_path, f"{index}_{x1}_{x2}_{y1}_{y2}_{z1}_{z2}.schem"
+        output_dir_path, f"{world_name}_{x1}_{x2}_{y1}_{y2}_{z1}_{z2}.schem"
     )
     save_selection(
         level, SelectionGroup(SelectionBox((x1, y1, z1), (x2, y2, z2))), output_path
@@ -140,10 +135,11 @@ def main(args):
     minz, maxz = -args.rz, args.rz
 
     level = load_level(args.world_dir)
+    world_name = Path(args.world_dir).stem
     output_dir_path = os.path.join(".", args.output_dir)
     os.makedirs(output_dir_path, exist_ok=True)
     for i in tqdm(range(args.n_samples)):
-        create_sample(level, minx, maxx, minz, maxz, output_dir_path, i)
+        create_sample(level, world_name, minx, maxx, minz, maxz, output_dir_path, i)
 
 
 if __name__ == "__main__":

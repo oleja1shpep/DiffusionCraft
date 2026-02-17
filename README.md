@@ -61,6 +61,12 @@ To parse world into schematics run this:
 python3 parse_world.py --world-dir [WORLD_DIR] --output-dir [OUTPUT_DIR] --rx [RADIUS_X] --rz [RADIUS_Z] --n_samples [N_SAMPLES]
 ```
 
+To parse schematics into tensors:
+
+```bash
+python3 schem2tensor.py --schem-dir [SCHEMATICS_DIR] --output-dir [OUTPUT_DIR] --n_samples [N_SAMPLES]
+```
+
 To train a model, run the following command:
 
 ```bash

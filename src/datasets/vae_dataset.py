@@ -38,7 +38,7 @@ class VAEDataset(BaseDataset):
 
         super().__init__(index, *args, **kwargs)
 
-    def _create_index(self, input_length, n_classes, dataset_length, name):
+    def _create_index(self, name):
         """
         Create index for the dataset. The function processes dataset metadata
         and utilizes it to get information dict for each element of

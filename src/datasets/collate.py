@@ -3,7 +3,7 @@ import torch
 AIR_BLOCK_IDX = 0
 
 
-def collate_fn(dataset_items: list[dict]):
+def collate_fn(dataset_items: list[dict]) -> dict:
     """
     Collate and pad fields in the dataset items.
     Converts individual items into a batch.
@@ -22,7 +22,6 @@ def collate_fn(dataset_items: list[dict]):
     result_batch["attributes_data"] = [
         dataset_items[i]["attributes_data"] for i in range(len(dataset_items))
     ]
-    result_batch["block_type_grid"]
     max_width, max_height, max_length = 0, 0, 0
     for i in range(len(dataset_items)):
         width, height, length = dataset_items[i]["block_type_grid"].shape
@@ -36,17 +35,34 @@ def collate_fn(dataset_items: list[dict]):
         block_grid = dataset_items[i]["block_type_grid"]
         width, height, length = block_grid.shape
 
-        # width_pad
+        # padding
         block_grid = torch.concatenate(
-            [block_grid, AIR_BLOCK_IDX * torch.ones(max_width - width, 1, 1)], dim=0
+            [
+                block_grid,
+                AIR_BLOCK_IDX
+                * torch.ones(max_width - width, height, length, dtype=torch.long),
+            ],
+            dim=0,
         )
         block_grid = torch.concatenate(
-            [block_grid, AIR_BLOCK_IDX * torch.ones(1, max_height - height, 1)], dim=1
+            [
+                block_grid,
+                AIR_BLOCK_IDX
+                * torch.ones(max_width, max_height - height, length, dtype=torch.long),
+            ],
+            dim=1,
         )
         block_grid = torch.concatenate(
-            [block_grid, AIR_BLOCK_IDX * torch.ones(1, 1, max_length - length)], dim=2
+            [
+                block_grid,
+                AIR_BLOCK_IDX
+                * torch.ones(
+                    max_width, max_height, max_length - length, dtype=torch.long
+                ),
+            ],
+            dim=2,
         )
 
-        result_batch["block_type_grid"].append(block_grid)
+        result_batch["block_type_grid"].append(block_grid.unsqueeze(0))
     result_batch["block_type_grid"] = torch.vstack(result_batch["block_type_grid"])
     return result_batch

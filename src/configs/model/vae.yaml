@@ -1,2 +1,3 @@
 _target_: src.model.SDVAE
 dim: 256
+device: ${trainer.device}

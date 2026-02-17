@@ -5,10 +5,13 @@ from src.model.VAE.modules import AttributeDecoder, BlockTypeDecoder, GridEncode
 
 
 class SDVAE(nn.Module):
-    def __init__(self, dim):
+    def __init__(self, dim, device="auto"):
         super().__init__()
 
-        self.encoder = GridEncoder(dim)
+        if device == "auto":
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        self.encoder = GridEncoder(dim, device=device)
         self.block_decoder = BlockTypeDecoder(dim)
 
         # self.downsample = nn.Sequential(
@@ -23,7 +26,7 @@ class SDVAE(nn.Module):
         #     nn.ConvTranspose3d(dim, dim, kernel_size=3, stride=1, padding=1),
         # )
 
-        self.attr_decoder = AttributeDecoder(dim)
+        self.attr_decoder = AttributeDecoder(dim, device=device)
 
     def forward(self, **batch):
         features = self.encoder(**batch)  # (B, W, H, L, D)
@@ -36,11 +39,10 @@ class SDVAE(nn.Module):
         features_reconstructed = features[:, :W, :H, :L]
 
         reconstructed_block_type_grid = self.block_decoder(features_reconstructed)
-        reconstructed_attributes_data = self.attr_decoder(
+        reconstructed_attributes_values = self.attr_decoder(
             **batch, features=features_reconstructed
         )
-
         return {
             "reconstructed_block_type_grid": reconstructed_block_type_grid,
-            "reconstructed_attributes_data": reconstructed_attributes_data,
+            "reconstructed_attributes_values": reconstructed_attributes_values,
         }

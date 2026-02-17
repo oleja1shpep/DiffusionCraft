@@ -26,7 +26,7 @@ class VAEDataset(BaseDataset):
                 this random dataset.
             name (str): partition name
         """
-        self.index_path = ROOT_PATH / "data" / "dataset" / name / "vae_index.json"
+        self.index_path = ROOT_PATH / "data" / "dataset" / f"vae_{name}_index.json"
 
         # each nested dataset class must have an index field that
         # contains list of dicts. Each dict contains information about
@@ -56,24 +56,19 @@ class VAEDataset(BaseDataset):
                 such as label and object path.
         """
         index = []
-        data_path = ROOT_PATH / "data" / "dataset" / name
+        data_path = ROOT_PATH / "data" / "dataset" / name / "parsed"
         data_path.mkdir(exist_ok=True, parents=True)
-
-        block_type_dir = data_path / "block_type_tensors"
-        attributes_dir = data_path / "attributes_data"
 
         # In this example, we create a synthesized dataset. However, in real
         # tasks, you should process dataset metadata and append it
         # to index. See other branches.
-        for file in tqdm(os.listdir(block_type_dir), desc="Creating Vae Dataset"):
-            block_type_path = block_type_dir / file
-            attributes_path = attributes_dir / f"{Path(file).stem}.json"
+        for structure in tqdm(os.listdir(data_path), desc="Creating Vae Dataset"):
+            structire_path = data_path / structure
 
             # parse dataset metadata and append it to index
             index.append(
                 {
-                    "block_type_path": str(block_type_path),
-                    "attributes_path": str(attributes_path),
+                    "structire_path": str(structire_path),
                 }
             )
 

@@ -345,14 +345,11 @@ class BaseTrainer:
                 the dataloader with some of the tensors on the device.
         """
         for tensor_for_device in self.cfg_trainer.device_tensors:
-            if tensor_for_device == "attributes_data":
-                for b in range(len(batch[tensor_for_device])):
-                    for key in batch[tensor_for_device][b]:
-                        for attr in batch[tensor_for_device][b][key]:
-                            batch[tensor_for_device][b][key][attr] = torch.tensor(
-                                batch[tensor_for_device][b][key][attr],
-                                device=self.device,
-                            )
+            if tensor_for_device in ["attributes_masks", "attributes_values"]:
+                for key in batch[tensor_for_device]:
+                    batch[tensor_for_device][key] = batch[tensor_for_device][key].to(
+                        self.device
+                    )
             else:
                 batch[tensor_for_device] = batch[tensor_for_device].to(self.device)
         return batch

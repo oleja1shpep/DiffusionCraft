@@ -1,6 +1,6 @@
 import torch
 
-AIR_BLOCK_IDX = 0
+from src.utils.model_utils import AIR_BLOCK_IDX
 
 
 def collate_fn(dataset_items: list[dict]) -> dict:
@@ -18,21 +18,32 @@ def collate_fn(dataset_items: list[dict]) -> dict:
 
     result_batch = {}
 
-    # example of collate_fn
-    result_batch["attributes_data"] = [
-        dataset_items[i]["attributes_data"] for i in range(len(dataset_items))
-    ]
     max_width, max_height, max_length = 0, 0, 0
-    for i in range(len(dataset_items)):
-        width, height, length = dataset_items[i]["block_type_grid"].shape
+    result_batch["attributes_masks"] = dict()
+    result_batch["attributes_values"] = dict()
+    result_batch["block_type_grid"] = []
+
+    for item in dataset_items:
+        for key in item["attributes_masks"]:
+            if key not in result_batch["attributes_masks"]:
+                result_batch["attributes_masks"][key] = []
+            result_batch["attributes_masks"][key].append(item["attributes_masks"][key])
+
+            if key not in result_batch["attributes_values"]:
+                result_batch["attributes_values"][key] = []
+            result_batch["attributes_values"][key].append(
+                item["attributes_values"][key]
+            )
+
+        width, height, length = item["block_type_grid"].shape
         max_width = max(max_width, width)
         max_height = max(max_height, height)
         max_length = max(max_length, length)
 
-    result_batch["block_type_grid"] = []
+        result_batch["block_type_grid"].append(item["block_type_grid"])
 
     for i in range(len(dataset_items)):
-        block_grid = dataset_items[i]["block_type_grid"]
+        block_grid = result_batch["block_type_grid"][i]
         width, height, length = block_grid.shape
 
         # padding
@@ -44,6 +55,16 @@ def collate_fn(dataset_items: list[dict]) -> dict:
             ],
             dim=0,
         )
+        # do not forget to pad masks with False (since air doesn't have attributes)
+        for key in result_batch["attributes_masks"]:
+            result_batch["attributes_masks"][key][i] = torch.concatenate(
+                [
+                    result_batch["attributes_masks"][key][i],
+                    torch.zeros(max_width - width, height, length, dtype=torch.bool),
+                ],
+                dim=0,
+            )
+
         block_grid = torch.concatenate(
             [
                 block_grid,
@@ -52,6 +73,17 @@ def collate_fn(dataset_items: list[dict]) -> dict:
             ],
             dim=1,
         )
+        for key in result_batch["attributes_masks"]:
+            result_batch["attributes_masks"][key][i] = torch.concatenate(
+                [
+                    result_batch["attributes_masks"][key][i],
+                    torch.zeros(
+                        max_width, max_height - height, length, dtype=torch.bool
+                    ),
+                ],
+                dim=1,
+            )
+
         block_grid = torch.concatenate(
             [
                 block_grid,
@@ -61,8 +93,29 @@ def collate_fn(dataset_items: list[dict]) -> dict:
                 ),
             ],
             dim=2,
-        )
+        ).unsqueeze(
+            0
+        )  # for vstack
+        for key in result_batch["attributes_masks"]:
+            result_batch["attributes_masks"][key][i] = torch.concatenate(
+                [
+                    result_batch["attributes_masks"][key][i],
+                    torch.zeros(
+                        max_width, max_height, max_length - length, dtype=torch.bool
+                    ),
+                ],
+                dim=2,
+            ).unsqueeze(0)
 
-        result_batch["block_type_grid"].append(block_grid.unsqueeze(0))
+        result_batch["block_type_grid"][i] = block_grid
+
     result_batch["block_type_grid"] = torch.vstack(result_batch["block_type_grid"])
+    for key in result_batch["attributes_masks"]:
+        result_batch["attributes_masks"][key] = torch.vstack(
+            result_batch["attributes_masks"][key]
+        )
+        result_batch["attributes_values"][key] = torch.concatenate(
+            result_batch["attributes_values"][key]
+        )  # just 1D tensor
+
     return result_batch

@@ -9,7 +9,7 @@ from src.utils.model_utils import get_head_key
 
 
 class AttributeDecoder(nn.Module):
-    def __init__(self, emb_dim=256, path_to_block_data="src/block_data"):
+    def __init__(self, emb_dim=256, path_to_block_data="src/block_data", device="cuda"):
         """
         The class for block attribute encoder
 
@@ -33,6 +33,14 @@ class AttributeDecoder(nn.Module):
             ROOT_PATH / path_to_block_data / "filtered_blocks.json"
         )
         self.idx2block = read_json(ROOT_PATH / path_to_block_data / "idx2block.json")
+        self.attr_pair2idxs = read_json(
+            ROOT_PATH / path_to_block_data / "attr_pair2idxs.json"
+        )
+
+        for key in self.attr_pair2idxs:
+            self.attr_pair2idxs[key] = torch.tensor(
+                self.attr_pair2idxs[key], device=device, dtype=torch.long
+            )
 
         self.heads = nn.ModuleDict()
 
@@ -45,6 +53,7 @@ class AttributeDecoder(nn.Module):
         self,
         block_type_grid: torch.Tensor,
         features: torch.Tensor,
+        attributes_masks: dict[str, torch.Tensor],
         **batch,
     ) -> list[dict[str, dict[str, torch.Tensor]]]:
         """
@@ -58,35 +67,15 @@ class AttributeDecoder(nn.Module):
         """
         B, W, H, L = block_type_grid.shape
 
-        attributes_data = [dict() for _ in range(B)]
-        # FIXME need to optimize somehow but the structure of data is too complex
+        # for each pair <attr, values> get logits of shape (N, len(values))
+        attributes_data = dict()  # attr-pair : values
 
-        # NEED TO APPLY MASKS AND CYCLE FOR ATTRS
-        # MASK DOES THIS BLOCK HAVE THIS ATTR PAIR
-        for x in range(W):
-            for y in range(H):
-                for z in range(L):
-                    coords_key = f"{x}_{y}_{z}"
-                    for b in range(B):
-                        block_idx = block_type_grid[b, x, y, z]
-                        block_type = self.idx2block[block_idx.item()]
-                        block_attr_dict = self.filtered_blocks[block_type]
-                        for attr in block_attr_dict:
-                            # check for attr being
-                            if attr not in self.attributes_defaults:
-                                # check attr not in block defaults
-                                if (
-                                    block_type not in self.block_attributes_defaults
-                                ) or (
-                                    attr
-                                    not in self.block_attributes_defaults[block_type]
-                                ):
-                                    values = block_attr_dict[attr]
-                                    head_key = get_head_key(attr, values)
-                                    logits = self.heads[head_key](features[b, x, y, z])
-                                    if coords_key not in attributes_data[b]:
-                                        attributes_data[b][coords_key] = dict()
-                                    attributes_data[b][coords_key][attr] = logits
+        for attr, values in self.non_default_attribute_pairs:
+            head_key = get_head_key(attr, values)
+            mask = attributes_masks[head_key]
+            attr_logits = self.heads[head_key](features[mask])  # (N, len(values))
+            attributes_data[head_key] = attr_logits
+
         return attributes_data
 
 

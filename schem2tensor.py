@@ -6,15 +6,12 @@ from pathlib import Path
 
 import nbtlib
 import numpy as np
+import torch
 from immutable_views import *
 from nbtlib.tag import *
 from tqdm import tqdm
 
-INFESTED = "minecraft:infested_"
-AIR = "minecraft:air"
-BLOCK_TYPE_TENSORS = "block_type_tensors"
-ATTRIBUTES_DATA = "attributes_data"
-AIR_BLOCK_IDX = 0
+from src.utils.model_utils import AIR, AIR_BLOCK_IDX, BLOCK_TYPE, INFESTED, get_head_key
 
 
 class _VarintIO:
@@ -228,6 +225,12 @@ def create_parser():
         required=False,
         type=int,
     )
+
+    parser.add_argument(
+        "--limit",
+        required=False,
+        type=int,
+    )
     return parser
 
 
@@ -285,7 +288,7 @@ def filter_attribute_dict(
     for attr in final_attr_dict:
         value = final_attr_dict[attr]
         block_attrs = filtered_blocks_dict[block]
-        final_attr_dict[attr] = block_attrs[attr].index(value)
+        final_attr_dict[attr] = sorted(block_attrs[attr]).index(value)
 
     return final_attr_dict
 
@@ -329,19 +332,18 @@ def create_block2idx_mapping(block_data_dir):
         json.dump(block2idx, w, indent=4)
 
 
-def parse_schematics(data_dir, output_dir=None, block_data_dir="src/block_data"):
+def parse_schematics(
+    data_dir, output_dir=None, block_data_dir="src/block_data", limit=None
+):
     """
     A function for turning schematics in folder into tensors
     """
     data_dir = Path(data_dir)
     if output_dir is None:
-        output_dir = data_dir
+        output_dir = data_dir / "parsed"
     output_dir = Path(output_dir)
 
     block_data_dir = Path(block_data_dir)
-
-    os.makedirs(output_dir / BLOCK_TYPE_TENSORS, exist_ok=True)
-    os.makedirs(output_dir / ATTRIBUTES_DATA, exist_ok=True)
 
     with open(block_data_dir / "filtered_blocks.json") as f:
         filtered_blocks_dict = json.load(f)
@@ -360,10 +362,29 @@ def parse_schematics(data_dir, output_dir=None, block_data_dir="src/block_data")
     with open(block_data_dir / "block_attributes_defaults.json") as f:
         block_attributes_defaults = json.load(f)
 
-    for schm in tqdm(sorted(os.listdir(data_dir))):
+    with open(block_data_dir / "block_attributes_defaults.json") as f:
+        block_attributes_defaults = json.load(f)
+
+    with open(block_data_dir / "non_default_attribute_pairs.json") as f:
+        non_default_attribute_pairs = json.load(f)
+
+    with open(block_data_dir / "attr_pair2idxs.json") as f:
+        attr_pair2idxs = json.load(f)
+
+    for key in attr_pair2idxs:
+        attr_pair2idxs[key] = torch.tensor(attr_pair2idxs[key], dtype=torch.int16)
+
+    files = sorted(os.listdir(data_dir))
+
+    if limit is None:
+        limit = len(files)
+
+    for i, schm in enumerate(tqdm(files, total=limit)):
+        if i >= limit:
+            break
         file: Path = data_dir / schm
         if file.suffix == ".schem":
-            name = file.stem
+            structure_name = file.stem
             try:
                 schem = nbtlib.load(file)
             except Exception as e:
@@ -374,9 +395,10 @@ def parse_schematics(data_dir, output_dir=None, block_data_dir="src/block_data")
 
             coord2byte, palette = _initFromFile(file)
 
-            block_grid_tensor = np.zeros(
-                (width, height, length), dtype=np.int16
+            block_grid_tensor = torch.zeros(
+                (width, height, length), dtype=torch.int16
             )  # x, y, z
+
             attributes = {}
 
             for x, y, z in coord2byte:
@@ -398,17 +420,42 @@ def parse_schematics(data_dir, output_dir=None, block_data_dir="src/block_data")
 
                 block_grid_tensor[x][y][z] = block_idx
                 if len(attr_dict):
-                    attributes[f"{x}_{y}_{z}"] = attr_dict
-            np.save(output_dir / BLOCK_TYPE_TENSORS / name, block_grid_tensor)
-            with open(output_dir / ATTRIBUTES_DATA / f"{name}.json", "w") as f:
-                json.dump(attributes, f, indent=4)
+                    attributes[(x, y, z)] = attr_dict
+
+            os.makedirs(output_dir / structure_name, exist_ok=True)
+            torch.save(
+                block_grid_tensor, output_dir / structure_name / f"{BLOCK_TYPE}.pt"
+            )  # int16
+
+            # create masks and attr vectors for each attr-value pair
+            for attr, values in non_default_attribute_pairs:
+                head_key = get_head_key(attr, values)
+                mask = torch.isin(block_grid_tensor, attr_pair2idxs[head_key])
+                idxs = torch.nonzero(mask)
+
+                attribute_values = []
+                for x, y, z in idxs:
+                    attribute_values.append(
+                        attributes[(x.item(), y.item(), z.item())][attr]
+                    )
+
+                os.makedirs(output_dir / structure_name / head_key, exist_ok=True)
+
+                torch.save(
+                    mask, output_dir / structure_name / head_key / "mask.pt"
+                )  # bool
+                torch.save(
+                    torch.tensor(attribute_values, dtype=torch.int8),
+                    output_dir / structure_name / head_key / "values.pt",
+                )  # int8
 
 
 def main(args):
     data_dir = args.schem_dir
     output_dir = args.output_dir
     block_data_dir = args.block_data_dir
-    parse_schematics(data_dir, output_dir, block_data_dir)
+    limit = args.limit
+    parse_schematics(data_dir, output_dir, block_data_dir, limit)
 
 
 if __name__ == "__main__":

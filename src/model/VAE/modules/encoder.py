@@ -9,7 +9,7 @@ from src.utils.model_utils import get_head_key
 
 
 class AttributeEncoder(nn.Module):
-    def __init__(self, emb_dim=256, path_to_block_data="src/block_data"):
+    def __init__(self, emb_dim=256, path_to_block_data="src/block_data", device="cuda"):
         """
         The class for block attribute encoder
 
@@ -27,6 +27,14 @@ class AttributeEncoder(nn.Module):
             ROOT_PATH / path_to_block_data / "filtered_blocks.json"
         )
         self.idx2block = read_json(ROOT_PATH / path_to_block_data / "idx2block.json")
+        self.attr_pair2idxs = read_json(
+            ROOT_PATH / path_to_block_data / "attr_pair2idxs.json"
+        )
+
+        for key in self.attr_pair2idxs:
+            self.attr_pair2idxs[key] = torch.tensor(
+                self.attr_pair2idxs[key], device=device, dtype=torch.long
+            )
 
         self.heads = nn.ModuleDict()
 
@@ -40,7 +48,8 @@ class AttributeEncoder(nn.Module):
     def forward(
         self,
         block_type_grid: torch.Tensor,
-        attributes_data: list[dict[str, dict[str, torch.Tensor]]],
+        attributes_masks: dict[str, torch.Tensor],
+        attributes_values: dict[str, torch.Tensor],
         **batch,
     ):
         """
@@ -48,33 +57,23 @@ class AttributeEncoder(nn.Module):
 
         Args:
             block_type_grid (Tensor): a tensor of shape (B, W, H, L) consisting of block indexes.
-            attributes_data (List): a batch of dictionaries representing the attribute data of block grid.
+            attributes_masks (dict): a dict with keys being attr-value pairs and values being batches of masks (B, W, H, L) for this pair.
+            attributes_values (dict): a dict with keys being attr-value pairs and values being 1D tensors of values of corresponding attributes
         Returns:
             output (Tensor): a tensor of shape (B, W, H, L, D) representing the encoded attribute grid.
         """
         B, W, H, L = block_type_grid.shape
         output = torch.zeros(B, W, H, L, self.D, device=block_type_grid.device)
 
-        # FIXME need to optimize somehow but the structure of data is too complex
-        for b in range(len(attributes_data)):
-            for coords in attributes_data[b]:
-                attr_dict = attributes_data[b][coords]
-                x, y, z = list(map(int, coords.split("_")))
-                block_idx = block_type_grid[b, x, y, z]
-                block_type = self.idx2block[block_idx.item()]
-                block_attr_dict = self.filtered_blocks[block_type]
-                for attr in attr_dict:
-                    assert (
-                        attr in block_attr_dict
-                    ), f"Attribute '{attr}' does not correspond to block '{block_type}'."
-
-                    values = block_attr_dict[attr]
-                    key = f"{attr}:{sorted(values)}"
-
-                    assert (
-                        key in self.heads
-                    ), f"Attribute pair '{key}' must be present in heads' keys."
-                    output[b, x, y, z] += self.heads[key](attr_dict[attr])
+        # create masks
+        for attr, values in self.non_default_attribute_pairs:
+            head_key = get_head_key(attr, values)
+            assert head_key in attributes_masks, f"Key '{head_key}' not in masks"
+            assert head_key in attributes_values, f"Key '{head_key}' not in attr values"
+            assert head_key in self.heads, f"Key '{head_key}' not in encoder heads"
+            mask = attributes_masks[head_key]
+            values = attributes_values[head_key]
+            output[mask] += self.heads[head_key](values)
 
         return output
 
@@ -111,7 +110,7 @@ class BlockTypeEncoder(nn.Module):
 
 
 class GridEncoder(nn.Module):
-    def __init__(self, emb_dim=256, path_to_block_data="src/block_data"):
+    def __init__(self, emb_dim=256, path_to_block_data="src/block_data", device="cuda"):
         """
         The class for block grid encoder
 
@@ -121,7 +120,7 @@ class GridEncoder(nn.Module):
         """
         super().__init__()
         self.block_type_encoder = BlockTypeEncoder(emb_dim, path_to_block_data)
-        self.attribute_encoder = AttributeEncoder(emb_dim, path_to_block_data)
+        self.attribute_encoder = AttributeEncoder(emb_dim, path_to_block_data, device)
 
     def forward(self, **batch):
         """

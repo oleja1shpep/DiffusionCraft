@@ -9,9 +9,9 @@ class AttributeLoss(nn.Module):
 
     def forward(
         self,
-        attributes_data: list[dict[str, dict[str, torch.Tensor]]],
-        reconstructed_attributes_data: list[dict[str, dict[str, torch.Tensor]]],
-        **batch
+        attributes_values: dict[str, torch.Tensor],
+        reconstructed_attributes_values: dict[str, torch.Tensor],
+        **batch,
     ):
         """
         Loss function for blocks
@@ -22,18 +22,21 @@ class AttributeLoss(nn.Module):
         Returns:
             loss (Tensor): calculated loss function
         """
-        B = len(attributes_data)
-        total_loss = 0
-        # FIXME optimize and rework
-        for b in range(B):
-            for coords in attributes_data[b]:
-                for attr in attributes_data[b][coords]:
-                    total_loss += self.loss(
-                        input=reconstructed_attributes_data[b][coords][attr],
-                        target=attributes_data[b][coords][attr],
-                    )
+        loss_dict = dict()
+        for key in attributes_values:
+            if len(reconstructed_attributes_values[key]) and len(
+                attributes_values[key]
+            ):
+                loss_dict[f"{key}_loss"] = self.loss(
+                    input=reconstructed_attributes_values[key],
+                    target=attributes_values[key],
+                )
+            else:
+                loss_dict[f"{key}_loss"] = torch.tensor(
+                    0.0, device=attributes_values[key].device, requires_grad=True
+                )
 
-        return total_loss / B
+        return loss_dict
 
 
 class BlockTypeLoss(nn.Module):
@@ -45,8 +48,8 @@ class BlockTypeLoss(nn.Module):
         self,
         block_type_grid: torch.Tensor,
         reconstructed_block_type_grid: torch.Tensor,
-        **batch
-    ):
+        **batch,
+    ) -> dict[str, torch.Tensor]:
         """
         Loss function for blocks
 
@@ -56,10 +59,12 @@ class BlockTypeLoss(nn.Module):
         Returns:
             loss (Tensor): calculated loss function
         """
-        return self.loss(
-            input=reconstructed_block_type_grid.permute(0, 4, 1, 2, 3),
-            target=block_type_grid,
-        )
+        return {
+            "block_type_loss": self.loss(
+                input=reconstructed_block_type_grid.permute(0, 4, 1, 2, 3),
+                target=block_type_grid,
+            )
+        }
 
 
 class VAELoss(nn.Module):
@@ -73,4 +78,13 @@ class VAELoss(nn.Module):
         self.attribute_loss = AttributeLoss()
 
     def forward(self, **batch):
-        return {"loss": self.block_type_loss(**batch) + self.attribute_loss(**batch)}
+        return_dict = dict()
+        return_dict.update(self.block_type_loss(**batch))
+        return_dict.update(self.attribute_loss(**batch))
+
+        total_loss = 0
+
+        for key in return_dict:
+            total_loss += return_dict[key]
+        return_dict.update({"loss": total_loss})
+        return return_dict

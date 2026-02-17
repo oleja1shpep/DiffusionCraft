@@ -1,12 +1,13 @@
 import logging
 import random
-from typing import List
+from pathlib import Path
 
 import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from src.utils.io_utils import read_json
+from src.utils.io_utils import ROOT_PATH, read_json
+from src.utils.model_utils import BLOCK_TYPE, get_head_key
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,12 @@ class BaseDataset(Dataset):
     """
 
     def __init__(
-        self, index, limit=None, shuffle_index=False, instance_transforms=None
+        self,
+        index,
+        limit=None,
+        shuffle_index=False,
+        instance_transforms=None,
+        path_to_block_data="src/block_data",
     ):
         """
         Args:
@@ -39,9 +45,13 @@ class BaseDataset(Dataset):
         self._assert_index_is_valid(index)
 
         index = self._shuffle_and_limit_index(index, limit, shuffle_index)
-        self._index: List[dict] = index
+        self._index: list[dict] = index
 
         self.instance_transforms = instance_transforms
+
+        self.non_default_attribute_pairs = read_json(
+            ROOT_PATH / path_to_block_data / "non_default_attribute_pairs.json"
+        )
 
     def __getitem__(self, ind):
         """
@@ -59,15 +69,28 @@ class BaseDataset(Dataset):
                 (a single dataset element).
         """
         data_dict = self._index[ind]
-        block_type_path = data_dict["block_type_path"]
-        attributes_path = data_dict["attributes_path"]
+        structire_path = Path(data_dict["structire_path"])
 
-        block_type_grid: torch.Tensor = self.load_tensor(block_type_path)
-        attributes_data: dict[str, dict[str, int]] = read_json(attributes_path)
+        block_type_path = structire_path / f"{BLOCK_TYPE}.pt"
+        block_type_grid: torch.Tensor = torch.load(block_type_path).to(torch.long)
+
+        attributes_values = dict()
+        attributes_masks = dict()
+
+        for attr, values in self.non_default_attribute_pairs:
+            head_key = get_head_key(attr, values)
+
+            attributes_values[head_key] = torch.load(
+                structire_path / head_key / "values.pt"
+            ).to(torch.long)
+            attributes_masks[head_key] = torch.load(
+                structire_path / head_key / "mask.pt"
+            )
 
         instance_data = {
             "block_type_grid": block_type_grid,
-            "attributes_data": attributes_data,
+            "attributes_values": attributes_values,
+            "attributes_masks": attributes_masks,
         }
         instance_data = self.preprocess_data(instance_data)
 
@@ -78,17 +101,6 @@ class BaseDataset(Dataset):
         Get length of the dataset (length of the index).
         """
         return len(self._index)
-
-    def load_tensor(self, path: str) -> torch.Tensor:
-        """
-        Load tensor from .npy file.
-
-        Args:
-            path (str): path to the object.
-        Returns:
-            Tensor:
-        """
-        return torch.from_numpy(np.load(path))
 
     def preprocess_data(self, instance_data):
         """
@@ -146,13 +158,9 @@ class BaseDataset(Dataset):
                 such as label and object path.
         """
         for entry in index:
-            assert "block_type_path" in entry, (
-                "Each dataset item should include field 'block_type_path'"
-                " - path to block type grid file."
-            )
-            assert "attributes_path" in entry, (
-                "Each dataset item should include field 'attributes_path'"
-                " - path to atrribute data json file."
+            assert "structire_path" in entry, (
+                "Each dataset item should include field 'structire_path'"
+                " - path to structure block and attribute data."
             )
 
     @staticmethod

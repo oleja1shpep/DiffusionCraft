@@ -1,2 +1,2 @@
-from src.model.VAE.modules.decoder import AttributeDecoder, BlockTypeDecoder
-from src.model.VAE.modules.encoder import GridEncoder
+from src.model.VAE.modules.decoder import Decoder
+from src.model.VAE.modules.encoder import Encoder

@@ -1,3 +1,25 @@
+"""
+The script parses .schem files into tensors. The output has the following structure
+
+output_dir/
+    structure_1/
+        block_type.pt
+        attribute_pair_1/
+            values.pt
+            mask.pt
+        attribute_pair_2/
+            values.pt
+            mask.pt
+
+        ...
+
+        attribute_pair_N/
+            values.pt
+            mask.pt
+    ...
+"""
+
+
 import argparse
 import io
 import json

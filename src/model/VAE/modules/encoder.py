@@ -1,6 +1,3 @@
-import json
-from pathlib import Path
-
 import torch
 from torch import nn
 
@@ -107,10 +104,10 @@ class BlockTypeEncoder(nn.Module):
         return self.head(block_type_grid)
 
 
-class GridEncoder(nn.Module):
+class Encoder(nn.Module):
     def __init__(self, emb_dim=256, block_data_path="src/block_data", device="cuda"):
         """
-        The class for block grid encoder
+        The class for DownSampling Block Grid into latents
 
         Args:
             emb_dim (int): the size of features dimension.
@@ -120,6 +117,8 @@ class GridEncoder(nn.Module):
         self.block_type_encoder = BlockTypeEncoder(emb_dim, block_data_path)
         self.attribute_encoder = AttributeEncoder(emb_dim, block_data_path, device)
 
+        self.downsample_block = nn.Identity()
+
     def forward(self, **batch):
         """
         Encodes attributes and block type
@@ -127,7 +126,9 @@ class GridEncoder(nn.Module):
         Args:
             batch (dict): a dict representing batch of data samples.
         Returns:
-            output (Tensor): a tensor of shape (B, W, H, L, D) representing the encoded attribute grid.
+            latents (Tensor): a tensor of shape (B, w, h, l, C)
         """
 
-        return self.block_type_encoder(**batch) + self.attribute_encoder(**batch)
+        features = self.block_type_encoder(**batch) + self.attribute_encoder(**batch)
+        latents = self.downsample_block(features)
+        return latents

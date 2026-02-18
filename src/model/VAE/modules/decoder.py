@@ -1,6 +1,3 @@
-import json
-from pathlib import Path
-
 import torch
 from torch import nn
 
@@ -106,3 +103,36 @@ class BlockTypeDecoder(nn.Module):
         """
 
         return self.head(features)
+
+
+class Decoder(nn.Module):
+    def __init__(self, emb_dim=256, block_data_path="src/block_data", device="cuda"):
+        """
+        The class for DownSampling Block Grid into latents
+
+        Args:
+            emb_dim (int): the size of features dimension.
+            block_data_path (str): path to the directory with block jsons.
+        """
+        super().__init__()
+        self.block_type_decoder = BlockTypeDecoder(emb_dim, block_data_path)
+        self.attribute_decoder = AttributeDecoder(emb_dim, block_data_path, device)
+
+        self.upsample_block = nn.Identity()
+
+    def forward(self, latents, **batch):
+        """
+        Decodes attributes and block type
+
+        Args:
+            latents (Tensor) : a tensor of shape (B, w, h, l, C)
+            batch (Dict): a dict representing batch of data samples.
+        Returns:
+            output (Tuple[Tensor, dict]): A pair with first element being a tensor of shape (B, W, H, L, num_blocks) representing the block_type_logits and second element representing attribute data
+        """
+        features = self.upsample_block(latents)  # (B, W, H, L, D)
+        block_type_logits = self.block_type_decoder(
+            features
+        )  # (B, W, H, L, num_blocks)
+        attributes_logits = self.attribute_decoder(**batch, features=features)
+        return block_type_logits, attributes_logits

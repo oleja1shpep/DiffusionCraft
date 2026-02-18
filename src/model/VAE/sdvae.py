@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-from src.model.VAE.modules import AttributeDecoder, BlockTypeDecoder, GridEncoder
+from src.model.VAE.modules import Decoder, Encoder
 
 
 class SDVAE(nn.Module):
@@ -11,35 +11,13 @@ class SDVAE(nn.Module):
         if device == "auto":
             device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        self.encoder = GridEncoder(dim, device=device)
-        self.block_decoder = BlockTypeDecoder(dim)
-
-        # self.downsample = nn.Sequential(
-        #     nn.Conv3d(dim, dim, kernel_size=3, stride=1, padding=1),
-        #     nn.ReLU(),
-        #     nn.Conv3d(dim, dim, kernel_size=3, stride=1, padding=1),
-        # )
-
-        # self.upsample = nn.Sequential(
-        #     nn.ConvTranspose3d(dim, dim, kernel_size=3, stride=1, padding=1),
-        #     nn.ReLU(),
-        #     nn.ConvTranspose3d(dim, dim, kernel_size=3, stride=1, padding=1),
-        # )
-
-        self.attr_decoder = AttributeDecoder(dim, device=device)
+        self.encoder = Encoder(dim, device=device)
+        self.decoder = Decoder(dim, device=device)
 
     def forward(self, **batch):
-        features = self.encoder(**batch)  # (B, W, H, L, D)
-        _, W, H, L, _ = features.shape
+        latents = self.encoder(**batch)  # (B, w, h, l, D)
 
-        # features = features.permute(0, 4, 1, 2, 3) # (B, D, W, H, L)
-        # latents = self.downsample(features)
-
-        # features_reconstructed = self.upsample(latents).permute(0, 2, 3, 4, 1) # (B, W', H', L', D)
-        features_reconstructed = features[:, :W, :H, :L]
-
-        block_type_logits = self.block_decoder(features_reconstructed)
-        attributes_logits = self.attr_decoder(**batch, features=features_reconstructed)
+        block_type_logits, attributes_logits = self.decoder(latents, **batch)
 
         return {
             "block_type_logits": block_type_logits,

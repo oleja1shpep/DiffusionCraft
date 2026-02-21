@@ -1,6 +1,8 @@
 import torch
 from torch import nn
 
+from src.model.VAE.modules import DiagonalGaussianDistribution
+
 
 class AttributeLoss(nn.Module):
     def __init__(self):
@@ -31,7 +33,7 @@ class AttributeLoss(nn.Module):
                 )
             else:
                 loss_dict[f"{key}_loss"] = torch.tensor(
-                    0.0, device=attributes_values[key].device, requires_grad=True
+                    0.0, device=attributes_values[key].device
                 )
 
         return loss_dict
@@ -65,20 +67,31 @@ class BlockTypeLoss(nn.Module):
         }
 
 
+class KLLoss(nn.Module):
+    def __init__(self, kl_weight=1.0):
+        super().__init__()
+        self.kl_weight = kl_weight
+
+    def forward(self, latents: DiagonalGaussianDistribution, **batch):
+        return {"kl_loss": latents.kl().mean() * self.kl_weight}
+
+
 class VAELoss(nn.Module):
     """
     Example of a loss function to use.
     """
 
-    def __init__(self):
+    def __init__(self, kl_weight=1.0):
         super().__init__()
         self.block_type_loss = BlockTypeLoss()
         self.attribute_loss = AttributeLoss()
+        self.kl_loss = KLLoss(kl_weight)
 
     def forward(self, **batch):
         return_dict = dict()
         return_dict.update(self.block_type_loss(**batch))
         return_dict.update(self.attribute_loss(**batch))
+        return_dict.update(self.kl_loss(**batch))
 
         total_loss = 0
 

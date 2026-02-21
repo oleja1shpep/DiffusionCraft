@@ -3,7 +3,7 @@ import torch
 from src.utils.model_utils import AIR_BLOCK_IDX
 
 
-def collate_fn(dataset_items: list[dict]) -> dict:
+def collate_fn(dataset_items: list[dict], n_layers=3) -> dict:
     """
     Collate and pad fields in the dataset items.
     Converts individual items into a batch.
@@ -41,6 +41,11 @@ def collate_fn(dataset_items: list[dict]) -> dict:
         max_length = max(max_length, length)
 
         result_batch["block_type_grid"].append(item["block_type_grid"])
+
+    scale_factor = 2**n_layers
+    max_width += (scale_factor - max_width % scale_factor) % scale_factor
+    max_height += (scale_factor - max_height % scale_factor) % scale_factor
+    max_length += (scale_factor - max_length % scale_factor) % scale_factor
 
     for i in range(len(dataset_items)):
         block_grid = result_batch["block_type_grid"][i]

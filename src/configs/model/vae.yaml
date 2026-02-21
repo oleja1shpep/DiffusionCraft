@@ -1,3 +1,6 @@
 _target_: src.model.SDVAE
-dim: 256
+channels: 128
+z_channels: 16
+n_layers: 3
+num_res_blocks: 2
 device: ${trainer.device}

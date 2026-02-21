@@ -1,6 +1,12 @@
 import torch
 from torch import nn
 
+from src.model.VAE.modules.layers import (
+    AttnBlock,
+    Normalize,
+    ResnetBlock3D,
+    nonlinearity,
+)
 from src.utils.io_utils import ROOT_PATH, read_json
 from src.utils.model_utils import get_head_key
 
@@ -104,8 +110,36 @@ class BlockTypeEncoder(nn.Module):
         return self.head(block_type_grid)
 
 
+class Downsample(nn.Module):
+    def __init__(self, in_channels, with_conv=True):
+        super().__init__()
+        self.with_conv = with_conv
+        if self.with_conv:
+            # no asymmetric padding in torch conv, must do it ourselves
+            self.conv = torch.nn.Conv3d(
+                in_channels, in_channels, kernel_size=3, stride=2, padding=0
+            )
+
+    def forward(self, x):
+        if self.with_conv:
+            pad = (0, 1, 0, 1, 0, 1)
+            x = torch.nn.functional.pad(x, pad, mode="constant", value=0)
+            x = self.conv(x)
+        else:
+            x = torch.nn.functional.avg_pool3d(x, kernel_size=2, stride=2)
+        return x
+
+
 class Encoder(nn.Module):
-    def __init__(self, emb_dim=256, block_data_path="src/block_data", device="cuda"):
+    def __init__(
+        self,
+        channels=128,
+        n_layers=3,
+        z_channels=16,
+        num_res_blocks=2,
+        block_data_path="src/block_data",
+        device="cuda",
+    ):
         """
         The class for DownSampling Block Grid into latents
 
@@ -114,10 +148,50 @@ class Encoder(nn.Module):
             block_data_path (str): path to the directory with block jsons.
         """
         super().__init__()
-        self.block_type_encoder = BlockTypeEncoder(emb_dim, block_data_path)
-        self.attribute_encoder = AttributeEncoder(emb_dim, block_data_path, device)
+        self.block_type_encoder = BlockTypeEncoder(channels, block_data_path)
+        self.attribute_encoder = AttributeEncoder(channels, block_data_path, device)
 
-        self.downsample_block = nn.Identity()
+        self.n_layers = n_layers
+        self.z_channels = z_channels
+        self.num_res_blocks = num_res_blocks
+
+        self.down = nn.ModuleList()
+        for i in range(self.n_layers):
+            block = nn.ModuleList()
+            block_in = channels * (2**i)
+            block_out = channels * (2 ** (i + 1))
+            for _ in range(self.num_res_blocks):
+                block.append(
+                    ResnetBlock3D(
+                        in_channels=block_in,
+                        out_channels=block_out,
+                    )
+                )
+                block_in = block_out
+
+            down = nn.Module()
+            down.block = block
+            down.downsample = Downsample(block_in)
+
+            self.down.append(down)
+
+        # middle
+        self.mid = nn.Module()
+        self.mid.block_1 = ResnetBlock3D(
+            in_channels=block_in,
+            out_channels=block_in,
+        )
+        self.mid.attn_1 = AttnBlock(block_in)
+        self.mid.block_2 = ResnetBlock3D(
+            in_channels=block_in,
+            out_channels=block_in,
+        )
+
+        # end
+        self.norm_out = Normalize(block_in)
+        self.conv_out = torch.nn.Conv3d(
+            block_in, 2 * z_channels, kernel_size=3, stride=1, padding=1
+        )
 
     def forward(self, **batch):
         """
@@ -126,9 +200,27 @@ class Encoder(nn.Module):
         Args:
             batch (dict): a dict representing batch of data samples.
         Returns:
-            latents (Tensor): a tensor of shape (B, w, h, l, C)
+            latents (Tensor): a tensor of shape (B, z_dim * 2, w, h, l)
         """
+        h = self.block_type_encoder(**batch) + self.attribute_encoder(
+            **batch
+        )  # (B, W, H, L, D)
 
-        features = self.block_type_encoder(**batch) + self.attribute_encoder(**batch)
-        latents = self.downsample_block(features)
-        return latents
+        h = h.permute(0, 4, 1, 2, 3)  # (B, D, W, H, L)
+
+        # downsampling
+        for i_level in range(self.n_layers):
+            for i_block in range(self.num_res_blocks):
+                h = self.down[i_level].block[i_block](h)
+            h = self.down[i_level].downsample(h)
+
+        # middle
+        h = self.mid.block_1(h)
+        h = self.mid.attn_1(h)
+        h = self.mid.block_2(h)
+
+        # end
+        h = self.norm_out(h)
+        h = nonlinearity(h)
+        h = self.conv_out(h)
+        return h

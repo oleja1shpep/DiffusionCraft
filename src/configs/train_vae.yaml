@@ -15,6 +15,7 @@ lr_scheduler:
   step_size: ${trainer.epoch_len}
 loss_function:
   _target_: src.loss.VAELoss
+  kl_weight: 0.000001
 trainer:
   log_step: 50
   n_epochs: 100

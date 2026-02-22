@@ -1,3 +1,23 @@
 device: "auto"
-train: []
-inference: []
+train:
+  - _target_: src.metrics.BlockTypeAccuracy
+    name: "BlockTypeAccuracy"
+  - _target_: src.metrics.AttributeAccuracy
+    name: "AttributeAccuracyMin"
+  - _target_: src.metrics.AttributeAccuracy
+    name: "AttributeAccuracyMax"
+  - _target_: src.metrics.AttributeAccuracy
+    name: "AttributeAccuracyMean"
+  - _target_: src.metrics.AttributeAccuracy
+    name: "AttributeAccuracyMedian"
+inference:
+  - _target_: src.metrics.BlockTypeAccuracy
+    name: "BlockTypeAccuracy"
+  - _target_: src.metrics.AttributeAccuracy
+    name: "AttributeAccuracyMin"
+  - _target_: src.metrics.AttributeAccuracy
+    name: "AttributeAccuracyMax"
+  - _target_: src.metrics.AttributeAccuracy
+    name: "AttributeAccuracyMean"
+  - _target_: src.metrics.AttributeAccuracy
+    name: "AttributeAccuracyMedian"

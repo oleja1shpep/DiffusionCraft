@@ -18,6 +18,7 @@ loss_function:
   kl_weight: 0.000001
 trainer:
   log_step: 100
+  accumulation_steps: 8
   n_epochs: 100
   epoch_len: 1000
   device_tensors: ["block_type_grid", "attributes_masks", "attributes_values"] # which tensors should be on device (ex. GPU)

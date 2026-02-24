@@ -213,6 +213,7 @@ class BaseTrainer:
         ):
             try:
                 batch = self.process_batch(
+                    batch_idx,
                     batch,
                     metrics=self.train_metrics,
                 )
@@ -276,6 +277,7 @@ class BaseTrainer:
                 total=len(dataloader),
             ):
                 batch = self.process_batch(
+                    batch_idx,
                     batch,
                     metrics=self.evaluation_metrics,
                 )

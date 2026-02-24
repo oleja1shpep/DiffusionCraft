@@ -55,6 +55,7 @@ class AttributeDecoder(nn.Module):
     def forward(
         self,
         features: torch.Tensor,
+        pred_block_type_grid: torch.Tensor,
         attributes_masks: dict[str, torch.Tensor],
         **batch,
     ) -> list[dict[str, dict[str, torch.Tensor]]]:
@@ -62,10 +63,11 @@ class AttributeDecoder(nn.Module):
         Decodes attributes
 
         Args:
-            block_type_grid (Tensor): a tensor of shape (B, W, H, L) consisting of block indexes.
-            features (Tensor): a tensor of shape (B, W, H, L, D) consisting of block features
+            features (Tensor): a tensor of shape (B, W, H, L, D) consisting of block features.
+            pred_block_type_grid (Tensor) : a tensor of shape (B, W, H, L) consisting of block type ids.
+            attributes_masks (Dict): a dict of masks for each attribute_pair.
         Returns:
-            attributes_data (List): a list of dicts containing attribute data for each coordinate
+            attributes_data (List): a list of dicts containing attribute data for each coordinate.
         """
 
         # for each pair <attr, values> get logits of shape (N, len(values))
@@ -73,7 +75,11 @@ class AttributeDecoder(nn.Module):
 
         for attr, values in self.non_default_attribute_pairs:
             head_key = get_head_key(attr, values)
+            # if train mode get gt masks
             mask = attributes_masks[head_key]
+            # if eval mode calculate new masks
+            # else:
+            #     mask = torch.isin(pred_block_type_grid, self.attr_pair2idxs[head_key])
             attr_logits = self.heads[head_key](features[mask])  # (N, len(values))
             attributes_data[head_key] = attr_logits
 
@@ -229,5 +235,6 @@ class Decoder(nn.Module):
         h = h.permute(0, 2, 3, 4, 1)  # (B, W, H, L, D)
 
         block_type_logits = self.block_type_decoder(h)  # (B, W, H, L, num_blocks)
-        attributes_logits = self.attribute_decoder(h, **batch)
-        return block_type_logits, attributes_logits
+        pred_block_type_grid = block_type_logits.argmax(-1)
+        attributes_logits = self.attribute_decoder(h, pred_block_type_grid, **batch)
+        return block_type_logits, pred_block_type_grid, attributes_logits

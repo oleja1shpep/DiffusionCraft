@@ -48,11 +48,13 @@ class SDVAE(nn.Module):
     def forward(self, **batch):
         posterior = self.encode(**batch)  # (B, 2 * z_dim, w, h, l)
         z = posterior.mode()
-        block_type_logits, attributes_logits = self.decode(z, **batch)
+        block_type_logits, pred_block_type_grid, attributes_logits = self.decode(
+            z, **batch
+        )
 
         return {
             "block_type_logits": block_type_logits,
             "attributes_logits": attributes_logits,
-            "pred_block_type_grid": block_type_logits.argmax(-1),
+            "pred_block_type_grid": pred_block_type_grid,
             "latents": posterior,
         }

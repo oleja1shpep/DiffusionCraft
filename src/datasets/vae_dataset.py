@@ -56,7 +56,7 @@ class VAEDataset(BaseDataset):
                 such as label and object path.
         """
         index = []
-        data_path = ROOT_PATH / "data" / "dataset" / name / "parsed"
+        data_path = ROOT_PATH / "data" / "dataset" / name
         data_path.mkdir(exist_ok=True, parents=True)
 
         # In this example, we create a synthesized dataset. However, in real

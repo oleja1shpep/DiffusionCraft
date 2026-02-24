@@ -1,8 +1,6 @@
 train:
   _target_: src.datasets.VAEDataset
-  limit: 2
   name: "train"
 val:
   _target_: src.datasets.VAEDataset
-  limit: 2
   name: "val"

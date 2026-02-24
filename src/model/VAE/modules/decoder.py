@@ -135,7 +135,7 @@ class Decoder(nn.Module):
     def __init__(
         self,
         channels=128,
-        n_layers=3,
+        num_layers=3,
         z_channels=16,
         num_res_blocks=2,
         block_data_path="src/block_data",
@@ -149,11 +149,11 @@ class Decoder(nn.Module):
             block_data_path (str): path to the directory with block jsons.
         """
         super().__init__()
-        self.n_layers = n_layers
+        self.num_layers = num_layers
         self.z_channels = z_channels
         self.num_res_blocks = num_res_blocks
 
-        block_in = channels * (2**n_layers)
+        block_in = channels * (2**num_layers)
 
         # z to block_in
         self.conv_in = torch.nn.Conv3d(
@@ -174,7 +174,7 @@ class Decoder(nn.Module):
 
         # upsampling
         self.up = nn.ModuleList()
-        for i in reversed(range(n_layers)):
+        for i in reversed(range(num_layers)):
             block = nn.ModuleList()
             block_out = channels * (2**i)
             for _ in range(num_res_blocks + 1):
@@ -224,7 +224,7 @@ class Decoder(nn.Module):
         h = self.mid.block_2(h)  # (B, block_in, w, h, l)
 
         # upsampling
-        for i in reversed(range(self.n_layers)):
+        for i in reversed(range(self.num_layers)):
             for i_block in range(self.num_res_blocks + 1):
                 h = self.up[i].block[i_block](h)
             h = self.up[i].upsample(h)

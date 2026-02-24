@@ -6,13 +6,13 @@ from src.model.VAE.modules import Decoder, DiagonalGaussianDistribution, Encoder
 
 class SDVAE(nn.Module):
     def __init__(
-        self, channels=256, z_channels=16, n_layers=3, num_res_blocks=2, device="auto"
+        self, channels=256, z_channels=16, num_layers=3, num_res_blocks=2, device="auto"
     ):
         """
         Args:
             channels (Int) : the dim of Embeddings.
             z_dim (Int) : the number of channels of latents.
-            n_layers (Int) : layers of downsampling.
+            num_layers (Int) : layers of downsampling.
             num_res_blocks (Int) : number of ResnetBlocks in downsampling.
         """
         super().__init__()
@@ -21,10 +21,10 @@ class SDVAE(nn.Module):
             device = "cuda" if torch.cuda.is_available() else "cpu"
 
         self.encoder = Encoder(
-            channels, n_layers, z_channels, num_res_blocks, device=device
+            channels, num_layers, z_channels, num_res_blocks, device=device
         )
         self.decoder = Decoder(
-            channels, n_layers, z_channels, num_res_blocks, device=device
+            channels, num_layers, z_channels, num_res_blocks, device=device
         )
 
         self.quant_conv = nn.Conv3d(z_channels * 2, z_channels * 2, 1)

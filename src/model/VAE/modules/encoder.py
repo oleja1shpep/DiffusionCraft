@@ -134,7 +134,7 @@ class Encoder(nn.Module):
     def __init__(
         self,
         channels=128,
-        n_layers=3,
+        num_layers=3,
         z_channels=16,
         num_res_blocks=2,
         block_data_path="src/block_data",
@@ -151,12 +151,12 @@ class Encoder(nn.Module):
         self.block_type_encoder = BlockTypeEncoder(channels, block_data_path)
         self.attribute_encoder = AttributeEncoder(channels, block_data_path, device)
 
-        self.n_layers = n_layers
+        self.num_layers = num_layers
         self.z_channels = z_channels
         self.num_res_blocks = num_res_blocks
 
         self.down = nn.ModuleList()
-        for i in range(self.n_layers):
+        for i in range(self.num_layers):
             block = nn.ModuleList()
             block_in = channels * (2**i)
             block_out = channels * (2 ** (i + 1))
@@ -209,7 +209,7 @@ class Encoder(nn.Module):
         h = h.permute(0, 4, 1, 2, 3)  # (B, D, W, H, L)
 
         # downsampling
-        for i_level in range(self.n_layers):
+        for i_level in range(self.num_layers):
             for i_block in range(self.num_res_blocks):
                 h = self.down[i_level].block[i_block](h)
             h = self.down[i_level].downsample(h)

@@ -17,9 +17,9 @@ loss_function:
   _target_: src.loss.VAELoss
   kl_weight: 0.000001
 trainer:
-  log_step: 50
+  log_step: 100
   n_epochs: 100
-  epoch_len: 20
+  epoch_len: 1000
   device_tensors: ["block_type_grid", "attributes_masks", "attributes_values"] # which tensors should be on device (ex. GPU)
   resume_from: null # null or path to the checkpoint dir with *.pth and config.yaml
   device: auto # device name or "auto"

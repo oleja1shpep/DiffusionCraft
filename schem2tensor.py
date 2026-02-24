@@ -405,8 +405,11 @@ def parse_schematics(
         if i >= limit:
             break
         file: Path = data_dir / schm
+
         if file.suffix == ".schem":
             structure_name = file.stem
+            if (output_dir / structure_name).exists():
+                continue
             try:
                 schem = nbtlib.load(file)
             except Exception as e:

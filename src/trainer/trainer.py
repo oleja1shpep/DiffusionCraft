@@ -87,7 +87,7 @@ class Trainer(BaseTrainer):
                     if (step + 1) % self.config.trainer.accumulation_steps == 0:
                         self._clip_grad_norm()
                         self.scaler.step(self.optimizer)
-                    self.scaler.update()
+                        self.scaler.update()
                     if self.lr_scheduler is not None:
                         self.lr_scheduler.step()
         else:

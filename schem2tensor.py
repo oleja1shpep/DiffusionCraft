@@ -464,14 +464,12 @@ def parse_schematics(
                         attributes[(x.item(), y.item(), z.item())][attr]
                     )
 
-                os.makedirs(output_dir / structure_name / head_key, exist_ok=True)
-
                 torch.save(
-                    mask, output_dir / structure_name / head_key / "mask.pt"
+                    mask, output_dir / structure_name / f"{head_key}_mask.pt"
                 )  # bool
                 torch.save(
                     torch.tensor(attribute_values, dtype=torch.int8),
-                    output_dir / structure_name / head_key / "values.pt",
+                    output_dir / structure_name / f"{head_key}_values.pt",
                 )  # int8
 
 

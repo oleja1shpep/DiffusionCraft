@@ -72,7 +72,25 @@ class Trainer(BaseTrainer):
             if (step + 1) % self.config.trainer.accumulation_steps == 0:
                 self.optimizer.zero_grad()
 
-        with torch.amp.autocast(self.device, dtype=torch.float16):
+        if self.config.trainer.amp:
+            with torch.amp.autocast(self.device, dtype=torch.float16):
+                outputs = self.model(**batch)
+                batch.update(outputs)
+
+                all_losses = self.criterion(**batch)
+                batch.update(all_losses)
+
+                if self.is_train:
+                    self.scaler.scale(
+                        batch["loss"]
+                    ).backward()  # sum of all losses is always called loss
+                    if (step + 1) % self.config.trainer.accumulation_steps == 0:
+                        self._clip_grad_norm()
+                        self.scaler.step(self.optimizer)
+                    self.scaler.update()
+                    if self.lr_scheduler is not None:
+                        self.lr_scheduler.step()
+        else:
             outputs = self.model(**batch)
             batch.update(outputs)
 
@@ -80,13 +98,10 @@ class Trainer(BaseTrainer):
             batch.update(all_losses)
 
             if self.is_train:
-                self.scaler.scale(
-                    batch["loss"]
-                ).backward()  # sum of all losses is always called loss
-                self._clip_grad_norm()
+                batch["loss"].backward()  # sum of all losses is always called loss
                 if (step + 1) % self.config.trainer.accumulation_steps == 0:
-                    self.scaler.step(self.optimizer)
-                    self.scaler.update()
+                    self._clip_grad_norm()
+                    self.optimizer.step()
                 if self.lr_scheduler is not None:
                     self.lr_scheduler.step()
         if self.config.trainer.check_nan:

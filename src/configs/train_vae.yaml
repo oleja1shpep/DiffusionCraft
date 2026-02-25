@@ -20,6 +20,7 @@ trainer:
   log_step: 100
   check_nan: True
   accumulation_steps: 8
+  amp: True
   max_grad_norm: 10
   n_epochs: 100
   epoch_len: 1000

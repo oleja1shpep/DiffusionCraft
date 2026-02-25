@@ -22,6 +22,12 @@ class Trainer(BaseTrainer):
             if torch.any(p.isnan()):
                 print(f"NaN IN MODEL PARAMS: {name}")
 
+            if p.grad is not None:
+                if torch.any(p.grad.isinf()):
+                    print(f"INF IN MODEL GRADS: {name}")
+                if torch.any(p.grad.isnan()):
+                    print(f"NaN IN MODEL GRADS: {name}")
+
         for key in batch:
             if isinstance(batch[key], torch.Tensor):
                 if torch.any(batch[key].isinf()):

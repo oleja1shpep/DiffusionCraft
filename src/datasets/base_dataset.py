@@ -27,7 +27,6 @@ class BaseDataset(Dataset):
         limit=None,
         shuffle_index=False,
         instance_transforms=None,
-        block_data_path="src/block_data",
     ):
         """
         Args:
@@ -48,10 +47,6 @@ class BaseDataset(Dataset):
         self._index: list[dict] = index
 
         self.instance_transforms = instance_transforms
-
-        self.non_default_attribute_pairs = read_json(
-            ROOT_PATH / block_data_path / "non_default_attribute_pairs.json"
-        )
 
     def __getitem__(self, ind):
         """
@@ -83,10 +78,10 @@ class BaseDataset(Dataset):
             head_key = get_head_key(attr, values)
 
             attributes_values[head_key] = torch.load(
-                structire_path / head_key / "values.pt", weights_only=False
+                structire_path / f"{head_key}_values.pt", weights_only=False
             ).to(torch.long)
             attributes_masks[head_key] = torch.load(
-                structire_path / head_key / "mask.pt", weights_only=False
+                structire_path / f"{head_key}_mask.pt", weights_only=False
             )
 
         instance_data = {

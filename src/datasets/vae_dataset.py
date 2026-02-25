@@ -7,6 +7,7 @@ from tqdm.auto import tqdm
 
 from src.datasets.base_dataset import BaseDataset
 from src.utils.io_utils import ROOT_PATH, read_json, write_json
+from src.utils.model_utils import get_head_key
 
 
 class VAEDataset(BaseDataset):
@@ -17,7 +18,7 @@ class VAEDataset(BaseDataset):
     0 and n_classes-1 as labels.
     """
 
-    def __init__(self, name="train", *args, **kwargs):
+    def __init__(self, name="train", block_data_path="src/block_data", *args, **kwargs):
         """
         Args:
             input_length (int): length of the random vector.
@@ -27,6 +28,10 @@ class VAEDataset(BaseDataset):
             name (str): partition name
         """
         self.index_path = ROOT_PATH / "data" / "dataset" / f"vae_{name}_index.json"
+
+        self.non_default_attribute_pairs = read_json(
+            ROOT_PATH / block_data_path / "non_default_attribute_pairs.json"
+        )
 
         # each nested dataset class must have an index field that
         # contains list of dicts. Each dict contains information about
@@ -65,12 +70,20 @@ class VAEDataset(BaseDataset):
         for structure in tqdm(os.listdir(data_path), desc="Creating Vae Dataset"):
             structire_path = data_path / structure
 
-            # parse dataset metadata and append it to index
-            index.append(
-                {
-                    "structire_path": str(structire_path),
-                }
-            )
+            for attr, values in self.non_default_attribute_pairs:
+                head_key = get_head_key(attr, values)
+                if not (
+                    (data_path / structure / f"{head_key}_mask.pt").exists()
+                    and (data_path / structure / f"{head_key}_values.pt").exists()
+                ):
+                    break
+            else:
+                # parse dataset metadata and append it to index
+                index.append(
+                    {
+                        "structire_path": str(structire_path),
+                    }
+                )
 
         # write index to disk
         write_json(index, self.index_path)

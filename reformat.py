@@ -1,5 +1,7 @@
 """
-The script parses .schem files into tensors. The output has the following structure
+The script parses turns one file structure into another
+
+FROM:
 
 output_dir/
     structure_1/
@@ -17,24 +19,35 @@ output_dir/
             values.pt
             mask.pt
     ...
+
+TO:
+
+output_dir/
+    structure_1/
+        block_type.pt
+        <attribute_pair_1>_values.pt
+        <attribute_pair_1>_mask.pt
+
+        <attribute_pair_2>_values.pt
+        <attribute_pair_2>_mask.pt
+
+        ...
+
+        <attribute_pair_N>_values.pt
+        <attribute_pair_N>_mask.pt
+    ...
 """
 
 
 import argparse
-import io
 import json
 import os
 import shutil
 from pathlib import Path
 
-import nbtlib
-import numpy as np
-import torch
-from immutable_views import *
-from nbtlib.tag import *
 from tqdm import tqdm
 
-from src.utils.model_utils import AIR, AIR_BLOCK_IDX, BLOCK_TYPE, INFESTED, get_head_key
+from src.utils.model_utils import get_head_key
 
 
 def create_parser():

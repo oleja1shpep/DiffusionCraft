@@ -4,18 +4,16 @@ The script parses .schem files into tensors. The output has the following struct
 output_dir/
     structure_1/
         block_type.pt
-        attribute_pair_1/
-            values.pt
-            mask.pt
-        attribute_pair_2/
-            values.pt
-            mask.pt
+        <attribute_pair_1>_values.pt
+        <attribute_pair_1>_mask.pt
+
+        <attribute_pair_2>_values.pt
+        <attribute_pair_2>_mask.pt
 
         ...
 
-        attribute_pair_N/
-            values.pt
-            mask.pt
+        <attribute_pair_N>_values.pt
+        <attribute_pair_N>_mask.pt
     ...
 """
 

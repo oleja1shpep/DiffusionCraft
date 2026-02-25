@@ -64,9 +64,6 @@ def main(args):
                 (data_dir / name / head_key / "mask.pt").exists()
                 and (data_dir / name / head_key / "values.pt").exists()
             ):
-                import pdb
-
-                pdb.set_trace()
                 shutil.rmtree(data_dir / name)
                 break
             os.rename(

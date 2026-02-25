@@ -12,6 +12,32 @@ class Trainer(BaseTrainer):
     Trainer class. Defines the logic of batch logging and processing.
     """
 
+    def check_nan_inf(self, **batch):
+        max_abs_param = 0
+        for name, p in self.model.named_parameters():
+            max_abs_param = max(max_abs_param, p.abs().max())
+            p: torch.nn.Parameter
+            if torch.any(p.isinf()):
+                print(f"INF IN MODEL PARAMS: {name}")
+            if torch.any(p.isnan()):
+                print(f"NaN IN MODEL PARAMS: {name}")
+
+        for key in batch:
+            if isinstance(batch[key], torch.Tensor):
+                if torch.any(batch[key].isinf()):
+                    print(f"INF in batch element: {key}")
+
+                if torch.any(batch[key].isnan()):
+                    print(f"NaN in batch element: {key}")
+
+            elif isinstance(batch[key], dict):
+                for k in batch[key]:
+                    if torch.any(batch[key][k].isinf()):
+                        print(f"INF in batch element: {key} in key {k}")
+
+                    if torch.any(batch[key][k].isnan()):
+                        print(f"NaN in batch element: {key} in key {k}")
+
     def process_batch(self, step, batch, metrics: MetricTracker):
         """
         Run batch through the model, compute metrics, compute loss,
@@ -57,7 +83,8 @@ class Trainer(BaseTrainer):
                     self.scaler.update()
                 if self.lr_scheduler is not None:
                     self.lr_scheduler.step()
-
+        if self.config.trainer.check_nan:
+            self.check_nan_inf(**batch)
         # update metrics for each loss (in case of multiple losses)
         for loss_name in self.config.writer.loss_names:
             metrics.update(loss_name, batch[loss_name].item())

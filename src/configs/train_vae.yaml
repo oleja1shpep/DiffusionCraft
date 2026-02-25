@@ -18,6 +18,7 @@ loss_function:
   kl_weight: 0.000001
 trainer:
   log_step: 100
+  check_nan: True
   accumulation_steps: 8
   max_grad_norm: 10
   n_epochs: 100

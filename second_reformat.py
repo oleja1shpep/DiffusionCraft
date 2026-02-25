@@ -23,7 +23,7 @@ TO:
 output_dir/
     structure_1/
         block_type.pt
-        attribute_data.pt
+        attributes_data.pt
     ...
 
 """
@@ -57,7 +57,7 @@ def main(args):
         non_default_attribute_pairs = json.load(f)
 
     for name in tqdm(os.listdir(data_dir)):
-        attribute_data = dict()
+        attributes_data = dict()
         if (data_dir / name / "attributes_data.pt").exists():
             continue
         for attr, values in non_default_attribute_pairs:
@@ -75,14 +75,14 @@ def main(args):
                 shutil.rmtree(data_dir / name)
                 break
 
-            attribute_data[head_key] = dict()
-            attribute_data[head_key]["mask"] = mask  # bool
-            attribute_data[head_key]["values"] = values  # int8
+            attributes_data[head_key] = dict()
+            attributes_data[head_key]["mask"] = mask  # bool
+            attributes_data[head_key]["values"] = values  # int8
 
             os.remove(data_dir / name / f"{head_key}_mask.pt")
             os.remove(data_dir / name / f"{head_key}_values.pt")
         else:
-            torch.save(attribute_data, data_dir / name / "attributes_data.pt")
+            torch.save(attributes_data, data_dir / name / "attributes_data.pt")
 
 
 if __name__ == "__main__":

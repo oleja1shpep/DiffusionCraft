@@ -451,7 +451,7 @@ def parse_schematics(
             )  # int16
 
             # create masks and attr vectors for each attr-value pair
-            attribute_data = dict()
+            attributes_data = dict()
             for attr, values in non_default_attribute_pairs:
                 head_key = get_head_key(attr, values)
                 mask = torch.isin(block_grid_tensor, attr_pair2idxs[head_key])
@@ -463,14 +463,14 @@ def parse_schematics(
                         attributes[(x.item(), y.item(), z.item())][attr]
                     )
 
-                attribute_data[head_key] = dict()
-                attribute_data[head_key]["mask"] = mask  # bool
-                attribute_data[head_key]["values"] = torch.tensor(
+                attributes_data[head_key] = dict()
+                attributes_data[head_key]["mask"] = mask  # bool
+                attributes_data[head_key]["values"] = torch.tensor(
                     attribute_values, dtype=torch.int8
                 )  # int8
 
             torch.save(
-                attribute_data, output_dir / structure_name / "attribute_data.pt"
+                attributes_data, output_dir / structure_name / "attributes_data.pt"
             )
 
 

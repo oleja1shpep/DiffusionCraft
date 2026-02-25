@@ -108,6 +108,7 @@ wandb/
 .cometml-runs/
 outputs/
 *.sh
+trace.json
 
 # editor, os cache directory
 .vscode/

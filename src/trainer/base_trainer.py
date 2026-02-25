@@ -3,6 +3,7 @@ from abc import abstractmethod
 import torch
 from numpy import inf
 from torch.nn.utils import clip_grad_norm_
+from torch.profiler import ProfilerActivity, profile
 from tqdm.auto import tqdm
 
 from src.datasets.data_utils import inf_loop
@@ -208,45 +209,94 @@ class BaseTrainer:
         self.train_metrics.reset()
         self.writer.set_step((epoch - 1) * self.epoch_len)
         self.writer.add_scalar("epoch", epoch)
-        for batch_idx, batch in enumerate(
-            tqdm(self.train_dataloader, desc="train", total=self.epoch_len)
-        ):
-            try:
-                batch = self.process_batch(
-                    batch_idx,
-                    batch,
-                    metrics=self.train_metrics,
-                )
-            except torch.cuda.OutOfMemoryError as e:
-                if self.skip_oom:
-                    self.logger.warning("OOM on batch. Skipping batch.")
-                    torch.cuda.empty_cache()  # free some memory
-                    continue
-                else:
-                    raise e
+        if self.config.trainer.profile:
+            with profile(
+                schedule=torch.profiler.schedule(
+                    wait=10, warmup=10, active=3, repeat=1
+                ),
+                activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+                record_shapes=True,
+                with_stack=True,
+            ) as prof:
+                for batch_idx, batch in enumerate(
+                    tqdm(self.train_dataloader, desc="train", total=self.epoch_len)
+                ):
+                    try:
+                        batch = self.process_batch(
+                            batch_idx,
+                            batch,
+                            metrics=self.train_metrics,
+                        )
+                        prof.step()
+                    except torch.cuda.OutOfMemoryError as e:
+                        if self.skip_oom:
+                            self.logger.warning("OOM on batch. Skipping batch.")
+                            torch.cuda.empty_cache()  # free some memory
+                            continue
+                        else:
+                            raise e
 
-            self.train_metrics.update("grad_norm", self._get_grad_norm())
+                    self.train_metrics.update("grad_norm", self._get_grad_norm())
 
-            # log current results
-            if batch_idx % self.log_step == 0:
-                self.writer.set_step((epoch - 1) * self.epoch_len + batch_idx)
-                self.logger.debug(
-                    "Train Epoch: {} {} Loss: {:.6f}".format(
-                        epoch, self._progress(batch_idx), batch["loss"].item()
+                    # log current results
+                    if batch_idx % self.log_step == 0:
+                        self.writer.set_step((epoch - 1) * self.epoch_len + batch_idx)
+                        self.logger.debug(
+                            "Train Epoch: {} {} Loss: {:.6f}".format(
+                                epoch, self._progress(batch_idx), batch["loss"].item()
+                            )
+                        )
+                        self.writer.add_scalar(
+                            "learning rate", self.lr_scheduler.get_last_lr()[0]
+                        )
+                        self._log_scalars(self.train_metrics)
+                        self._log_batch(batch_idx, batch)
+                        # we don't want to reset train metrics at the start of every epoch
+                        # because we are interested in recent train metrics
+                        last_train_metrics = self.train_metrics.result()
+                        self.train_metrics.reset()
+                    if batch_idx + 1 >= self.epoch_len:
+                        break
+                prof.export_chrome_trace("trace.json")
+        else:
+            for batch_idx, batch in enumerate(
+                tqdm(self.train_dataloader, desc="train", total=self.epoch_len)
+            ):
+                try:
+                    batch = self.process_batch(
+                        batch_idx,
+                        batch,
+                        metrics=self.train_metrics,
                     )
-                )
-                self.writer.add_scalar(
-                    "learning rate", self.lr_scheduler.get_last_lr()[0]
-                )
-                self._log_scalars(self.train_metrics)
-                self._log_batch(batch_idx, batch)
-                # we don't want to reset train metrics at the start of every epoch
-                # because we are interested in recent train metrics
-                last_train_metrics = self.train_metrics.result()
-                self.train_metrics.reset()
-            if batch_idx + 1 >= self.epoch_len:
-                break
+                except torch.cuda.OutOfMemoryError as e:
+                    if self.skip_oom:
+                        self.logger.warning("OOM on batch. Skipping batch.")
+                        torch.cuda.empty_cache()  # free some memory
+                        continue
+                    else:
+                        raise e
 
+                self.train_metrics.update("grad_norm", self._get_grad_norm())
+
+                # log current results
+                if batch_idx % self.log_step == 0:
+                    self.writer.set_step((epoch - 1) * self.epoch_len + batch_idx)
+                    self.logger.debug(
+                        "Train Epoch: {} {} Loss: {:.6f}".format(
+                            epoch, self._progress(batch_idx), batch["loss"].item()
+                        )
+                    )
+                    self.writer.add_scalar(
+                        "learning rate", self.lr_scheduler.get_last_lr()[0]
+                    )
+                    self._log_scalars(self.train_metrics)
+                    self._log_batch(batch_idx, batch)
+                    # we don't want to reset train metrics at the start of every epoch
+                    # because we are interested in recent train metrics
+                    last_train_metrics = self.train_metrics.result()
+                    self.train_metrics.reset()
+                if batch_idx + 1 >= self.epoch_len:
+                    break
         logs = last_train_metrics
 
         # Run val/test

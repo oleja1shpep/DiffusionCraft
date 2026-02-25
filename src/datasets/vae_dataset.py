@@ -70,20 +70,17 @@ class VAEDataset(BaseDataset):
         for structure in tqdm(os.listdir(data_path), desc="Creating Vae Dataset"):
             structire_path = data_path / structure
 
-            for attr, values in self.non_default_attribute_pairs:
-                head_key = get_head_key(attr, values)
-                if not (
-                    (data_path / structure / f"{head_key}_mask.pt").exists()
-                    and (data_path / structure / f"{head_key}_values.pt").exists()
-                ):
-                    break
-            else:
-                # parse dataset metadata and append it to index
-                index.append(
-                    {
-                        "structire_path": str(structire_path),
-                    }
-                )
+            if ("attributes_data.pt" not in os.listdir(structire_path)) or (
+                "block_type.pt" not in os.listdir(structire_path)
+            ):
+                continue
+
+            # parse dataset metadata and append it to index
+            index.append(
+                {
+                    "structire_path": str(structire_path),
+                }
+            )
 
         # write index to disk
         write_json(index, self.index_path)

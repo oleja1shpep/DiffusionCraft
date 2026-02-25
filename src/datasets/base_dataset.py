@@ -67,9 +67,13 @@ class BaseDataset(Dataset):
         structire_path = Path(data_dict["structire_path"])
 
         block_type_path = structire_path / f"{BLOCK_TYPE}.pt"
+        attributes_data_path = structire_path / "attributes_data.pt"
+
         block_type_grid: torch.Tensor = torch.load(
             block_type_path, weights_only=False
         ).to(torch.long)
+
+        attributes_data = torch.load(attributes_data_path, weights_only=False)
 
         attributes_values = dict()
         attributes_masks = dict()
@@ -77,12 +81,10 @@ class BaseDataset(Dataset):
         for attr, values in self.non_default_attribute_pairs:
             head_key = get_head_key(attr, values)
 
-            attributes_values[head_key] = torch.load(
-                structire_path / f"{head_key}_values.pt", weights_only=False
-            ).to(torch.long)
-            attributes_masks[head_key] = torch.load(
-                structire_path / f"{head_key}_mask.pt", weights_only=False
+            attributes_values[head_key] = attributes_data[head_key]["values"].to(
+                torch.long
             )
+            attributes_masks[head_key] = attributes_data[head_key]["mask"]
 
         instance_data = {
             "block_type_grid": block_type_grid,

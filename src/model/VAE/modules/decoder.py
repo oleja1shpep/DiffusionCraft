@@ -65,25 +65,29 @@ class AttributeDecoder(nn.Module):
         Args:
             features (Tensor): a tensor of shape (B, W, H, L, D) consisting of block features.
             pred_block_type_grid (Tensor) : a tensor of shape (B, W, H, L) consisting of block type ids.
-            attributes_masks (Dict): a dict of masks for each attribute_pair.
+            attributes_masks (Dict): a dict of masks for each <attr, values> pair.
         Returns:
-            attributes_data (List): a list of dicts containing attribute data for each coordinate.
+            attributes_logits (Dict): a dict of attribute logits for each <attr, values> pair.
         """
 
         # for each pair <attr, values> get logits of shape (N, len(values))
-        attributes_data = dict()  # attr-pair : values
+        attributes_logits = dict()  # attr-pair : values
+
+        # new masks
+        # pred_attribures_masks = dict()
 
         for attr, values in self.non_default_attribute_pairs:
             head_key = get_head_key(attr, values)
-            # if train mode get gt masks
-            mask = attributes_masks[head_key]
-            # if eval mode calculate new masks
-            # else:
-            #     mask = torch.isin(pred_block_type_grid, self.attr_pair2idxs[head_key])
-            attr_logits = self.heads[head_key](features[mask])  # (N, len(values))
-            attributes_data[head_key] = attr_logits
 
-        return attributes_data
+            # use GT masks for loss to work. For metrics will use gt-pred block equality mask
+            mask = attributes_masks[head_key]
+
+            # pred_attribures_masks[head_key] = torch.isin(pred_block_type_grid, self.attr_pair2idxs[head_key])
+
+            attr_logits = self.heads[head_key](features[mask])  # (N, len(values))
+            attributes_logits[head_key] = attr_logits
+
+        return attributes_logits
 
 
 class BlockTypeDecoder(nn.Module):

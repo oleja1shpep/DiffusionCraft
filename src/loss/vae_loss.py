@@ -2,6 +2,8 @@ import torch
 from torch import nn
 
 from src.model.VAE.modules import DiagonalGaussianDistribution
+from src.utils.io_utils import ROOT_PATH, read_json
+from src.utils.model_utils import AIR_BLOCK_IDX, WATER
 
 
 class AttributeLoss(nn.Module):
@@ -40,9 +42,15 @@ class AttributeLoss(nn.Module):
 
 
 class BlockTypeLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, block_data_path="./src/block_data"):
         super().__init__()
-        self.loss = nn.CrossEntropyLoss()
+        block2idx = read_json(ROOT_PATH / block_data_path / "block2idx.json")
+
+        weight = torch.ones(len(block2idx))
+        weight[AIR_BLOCK_IDX] = 1 / 10
+        weight[block2idx[WATER]] = 1 / 3
+
+        self.loss = nn.CrossEntropyLoss(weight)
 
     def forward(
         self,
@@ -61,8 +69,7 @@ class BlockTypeLoss(nn.Module):
         """
         return {
             "block_type_loss": self.loss(
-                input=block_type_logits.permute(0, 4, 1, 2, 3),
-                target=block_type_grid,
+                input=block_type_logits.permute(0, 4, 1, 2, 3), target=block_type_grid
             )
         }
 

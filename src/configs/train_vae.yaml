@@ -7,8 +7,9 @@ defaults:
   - transforms: vae
   - _self_
 optimizer:
-  _target_: torch.optim.Adam
-  lr: 3e-4
+  _target_: torch.optim.AdamW
+  lr: 1e-3
+  weight_decay: 1e-5
 lr_scheduler:
   _target_: torch.optim.lr_scheduler.StepLR
   gamma: 0.9
@@ -19,10 +20,9 @@ loss_function:
 trainer:
   log_step: 100
   check_nan: False
-  accumulation_steps: 1
+  accumulation_steps: 8
   amp: False
   profile: False
-  # max_grad_norm: 10
   n_epochs: 100
   epoch_len: 1000
   device_tensors: ["block_type_grid", "attributes_masks", "attributes_values"] # which tensors should be on device (ex. GPU)

@@ -69,7 +69,7 @@ class Trainer(BaseTrainer):
         metric_funcs = self.metrics["inference"]
         if self.is_train:
             metric_funcs = self.metrics["train"]
-            if (step + 1) % self.config.trainer.accumulation_steps == 0:
+            if step % self.config.trainer.accumulation_steps == 0:
                 self.optimizer.zero_grad()
 
         if self.config.trainer.amp:
@@ -112,6 +112,7 @@ class Trainer(BaseTrainer):
 
         for met in metric_funcs:
             metrics.update(met.name, met(**batch))
+
         return batch
 
     def _log_batch(self, batch_idx, batch, mode="train"):

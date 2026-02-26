@@ -109,6 +109,7 @@ wandb/
 outputs/
 *.sh
 trace.json
+trace_val.json
 
 # editor, os cache directory
 .vscode/

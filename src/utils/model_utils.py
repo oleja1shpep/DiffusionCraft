@@ -8,6 +8,7 @@ from PIL import Image
 
 INFESTED = "minecraft:infested_"
 AIR = "minecraft:air"
+WATER = "minecraft:water"
 BLOCK_TYPE = "block_type"
 AIR_BLOCK_IDX = 0
 

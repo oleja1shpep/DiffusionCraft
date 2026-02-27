@@ -22,7 +22,8 @@ trainer:
   check_nan: False
   accumulation_steps: 8
   amp: False
-  profile: False
+  profile_train: False
+  profile_val: False
   n_epochs: 100
   epoch_len: 1000
   device_tensors: ["block_type_grid", "attributes_masks", "attributes_values"] # which tensors should be on device (ex. GPU)

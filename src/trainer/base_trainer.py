@@ -209,7 +209,7 @@ class BaseTrainer:
         self.train_metrics.reset()
         self.writer.set_step((epoch - 1) * self.epoch_len)
         self.writer.add_scalar("epoch", epoch)
-        if self.config.trainer.profile:
+        if self.config.trainer.profile_train:
             with profile(
                 schedule=torch.profiler.schedule(
                     wait=10, warmup=10, active=3, repeat=1
@@ -320,22 +320,48 @@ class BaseTrainer:
         self.is_train = False
         self.model.eval()
         self.evaluation_metrics.reset()
-        with torch.no_grad():
-            for batch_idx, batch in tqdm(
-                enumerate(dataloader),
-                desc=part,
-                total=len(dataloader),
-            ):
-                batch = self.process_batch(
-                    batch_idx,
-                    batch,
-                    metrics=self.evaluation_metrics,
-                )
-            self.writer.set_step(epoch * self.epoch_len, part)
-            self._log_scalars(self.evaluation_metrics)
-            self._log_batch(
-                batch_idx, batch, part
-            )  # log only the last batch during inference
+        if self.config.trainer.profile_val:
+            with profile(
+                schedule=torch.profiler.schedule(wait=3, warmup=3, active=3, repeat=1),
+                activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+                record_shapes=True,
+                with_stack=True,
+            ) as prof:
+                with torch.no_grad():
+                    for batch_idx, batch in tqdm(
+                        enumerate(dataloader),
+                        desc=part,
+                        total=len(dataloader),
+                    ):
+                        batch = self.process_batch(
+                            batch_idx,
+                            batch,
+                            metrics=self.evaluation_metrics,
+                        )
+                        prof.step()
+                    self.writer.set_step(epoch * self.epoch_len, part)
+                    self._log_scalars(self.evaluation_metrics)
+                    self._log_batch(
+                        batch_idx, batch, part
+                    )  # log only the last batch during inference
+                prof.export_chrome_trace("trace_val.json")
+        else:
+            with torch.no_grad():
+                for batch_idx, batch in tqdm(
+                    enumerate(dataloader),
+                    desc=part,
+                    total=len(dataloader),
+                ):
+                    batch = self.process_batch(
+                        batch_idx,
+                        batch,
+                        metrics=self.evaluation_metrics,
+                    )
+                self.writer.set_step(epoch * self.epoch_len, part)
+                self._log_scalars(self.evaluation_metrics)
+                self._log_batch(
+                    batch_idx, batch, part
+                )  # log only the last batch during inference
 
         return self.evaluation_metrics.result()
 

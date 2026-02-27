@@ -8,12 +8,14 @@ defaults:
   - _self_
 optimizer:
   _target_: torch.optim.AdamW
-  lr: 1e-3
+  lr: 3e-4
   weight_decay: 1e-5
 lr_scheduler:
-  _target_: torch.optim.lr_scheduler.StepLR
-  gamma: 0.9
-  step_size: ${trainer.epoch_len}
+  _target_: torch.optim.lr_scheduler.OneCycleLR
+  max_lr: ${optimizer.lr}
+  epochs: ${trainer.n_epochs}
+  steps_per_epoch: ${trainer.epoch_len}
+  pct_start: 0.1
 loss_function:
   _target_: src.loss.VAELoss
   kl_weight: 0.000001

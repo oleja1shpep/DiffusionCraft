@@ -119,16 +119,22 @@ class BaseTrainer:
 
         # define metrics
         self.metrics = metrics
+        self.special_names = ["AttributeAccuracy", "RawAttributeAccuracy"]
+        self.suffixes = ["Min", "Max", "Mean", "Median"]
         self.train_metrics = MetricTracker(
             *self.config.writer.loss_names,
             "grad_norm",
             *[m.name for m in self.metrics["train"]],
             writer=self.writer,
+            special_names=self.special_names,
+            suffixes=self.suffixes,
         )
         self.evaluation_metrics = MetricTracker(
             *self.config.writer.loss_names,
             *[m.name for m in self.metrics["inference"]],
             writer=self.writer,
+            special_names=self.special_names,
+            suffixes=self.suffixes,
         )
 
         # define checkpoint dir and init everything if required
@@ -539,6 +545,12 @@ class BaseTrainer:
         if self.writer is None:
             return
         for metric_name in metric_tracker.keys():
+            if metric_name in self.special_names:
+                for suff in self.suffixes:
+                    self.writer.add_scalar(
+                        f"{metric_name + suff}", metric_tracker.avg(metric_name + suff)
+                    )
+                continue
             self.writer.add_scalar(f"{metric_name}", metric_tracker.avg(metric_name))
 
     def _save_checkpoint(self, epoch, save_best=False, only_best=False):

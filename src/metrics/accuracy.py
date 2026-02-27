@@ -41,7 +41,7 @@ class BlockTypeAccuracy(BaseMetric):
 
 
 class AttributeAccuracy(BaseMetric):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, block_equality=True, *args, **kwargs):
         """
         Example of a nested metric class. Applies metric function
         object (for example, from TorchMetrics) on tensors.
@@ -54,6 +54,8 @@ class AttributeAccuracy(BaseMetric):
             device (str): device for the metric calculation (and tensors).
         """
         super().__init__(*args, **kwargs)
+
+        self.block_equality = block_equality
 
     def __call__(
         self,
@@ -75,15 +77,20 @@ class AttributeAccuracy(BaseMetric):
         """
 
         # if apply this mask on attr mask it will leave only valid connections between gt and pred attributes
-        block_equality_mask = block_type_grid == pred_block_type_grid
+        if self.block_equality:
+            block_equality_mask = block_type_grid == pred_block_type_grid
 
         results = dict()
 
         for head_key in attributes_values:
-            attr_mask = block_equality_mask[attributes_masks[head_key]]  # (N, )
+            if self.block_equality:
+                attr_mask = block_equality_mask[attributes_masks[head_key]]  # (N, )
 
-            gt_attributes = attributes_values[head_key][attr_mask]
-            pred_attributes = attributes_logits[head_key][attr_mask].argmax(-1)
+                gt_attributes = attributes_values[head_key][attr_mask]
+                pred_attributes = attributes_logits[head_key][attr_mask].argmax(-1)
+            else:
+                gt_attributes = attributes_values[head_key]
+                pred_attributes = attributes_logits[head_key].argmax(-1)
 
             if len(gt_attributes) and len(pred_attributes):
                 results[head_key] = (
@@ -92,15 +99,11 @@ class AttributeAccuracy(BaseMetric):
 
         results = torch.tensor(list(results.values()))
         if len(results) == 0:
-            return 0
+            results = torch.tensor([0.0])
 
-        if self.name.endswith("Min"):
-            return results.min().item()
-        elif self.name.endswith("Max"):
-            return results.max().item()
-        elif self.name.endswith("Mean"):
-            return results.mean().item()
-        elif self.name.endswith("Median"):
-            return results.median().item()
-        else:
-            raise RuntimeError
+        return {
+            "Min": results.min().item(),
+            "Max": results.max().item(),
+            "Mean": results.mean().item(),
+            "Median": results.median().item(),
+        }

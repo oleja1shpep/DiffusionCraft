@@ -5,23 +5,17 @@ train:
   - _target_: src.metrics.AP
     name: "AirAP"
   - _target_: src.metrics.AttributeAccuracy
-    name: "AttributeAccuracyMin"
+    name: "AttributeAccuracy"
   - _target_: src.metrics.AttributeAccuracy
-    name: "AttributeAccuracyMax"
-  - _target_: src.metrics.AttributeAccuracy
-    name: "AttributeAccuracyMean"
-  - _target_: src.metrics.AttributeAccuracy
-    name: "AttributeAccuracyMedian"
+    name: "RawAttributeAccuracy"
+    block_equality: False
 inference:
   - _target_: src.metrics.BlockTypeAccuracy
     name: "BlockTypeAccuracy"
   - _target_: src.metrics.AP
     name: "AirAP"
   - _target_: src.metrics.AttributeAccuracy
-    name: "AttributeAccuracyMin"
+    name: "AttributeAccuracy"
   - _target_: src.metrics.AttributeAccuracy
-    name: "AttributeAccuracyMax"
-  - _target_: src.metrics.AttributeAccuracy
-    name: "AttributeAccuracyMean"
-  - _target_: src.metrics.AttributeAccuracy
-    name: "AttributeAccuracyMedian"
+    name: "RawAttributeAccuracy"
+    block_equality: False

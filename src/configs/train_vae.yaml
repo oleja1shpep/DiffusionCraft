@@ -14,7 +14,7 @@ lr_scheduler:
   _target_: torch.optim.lr_scheduler.OneCycleLR
   max_lr: ${optimizer.lr}
   epochs: ${trainer.n_epochs}
-  steps_per_epoch: ${trainer.epoch_len}
+  steps_per_epoch: ${divide:${trainer.epoch_len},${trainer.accumulation_steps}}
   pct_start: 0.1
 loss_function:
   _target_: src.loss.VAELoss
@@ -23,7 +23,7 @@ trainer:
   log_step: 100
   check_nan: False
   accumulation_steps: 8
-  amp: False
+  amp: 'no'
   profile_train: False
   profile_val: False
   n_epochs: 100

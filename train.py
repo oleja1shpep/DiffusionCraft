@@ -23,7 +23,7 @@ def main(config):
         config (DictConfig): hydra experiment config.
     """
     set_random_seed(config.trainer.seed)
-
+    OmegaConf.register_new_resolver("divide", lambda x, y: x // y)
     project_config = OmegaConf.to_container(config)
     logger = setup_saving_and_logging(config)
     writer = instantiate(config.writer, logger, project_config)

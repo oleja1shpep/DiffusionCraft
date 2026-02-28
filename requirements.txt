@@ -12,6 +12,7 @@ nbtlib==2.0.4
 mcschematic==11.4.3
 immutable-views==0.6.1
 scikit-learn==1.7.2
+accelerate==1.12.0
 
 black
 isort

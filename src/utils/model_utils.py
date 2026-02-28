@@ -1,5 +1,6 @@
 from io import BytesIO
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes._axes import Axes
@@ -11,6 +12,8 @@ AIR = "minecraft:air"
 WATER = "minecraft:water"
 BLOCK_TYPE = "block_type"
 AIR_BLOCK_IDX = 0
+
+matplotlib.use("Agg")
 
 
 def get_head_key(attr: str, values: list[str]):

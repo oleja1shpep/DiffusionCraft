@@ -44,7 +44,7 @@ class Trainer(BaseTrainer):
                     if torch.any(batch[key][k].isnan()):
                         print(f"NaN in batch element: {key} in key {k}")
 
-    def process_batch(self, step, batch, metrics: MetricTracker):
+    def process_batch(self, step, batch: dict, metrics: MetricTracker):
         """
         Run batch through the model, compute metrics, compute loss,
         and do training step (during training stage).
@@ -63,33 +63,28 @@ class Trainer(BaseTrainer):
                 the dataloader (possibly transformed via batch transform),
                 model outputs, and losses.
         """
-        batch = self.move_batch_to_device(batch)
+        # batch = self.move_batch_to_device(batch) # do not need while using accelerate
         batch = self.transform_batch(batch)  # transform batch on device -- faster
 
         metric_funcs = self.metrics["inference"]
         if self.is_train:
             metric_funcs = self.metrics["train"]
-            if step % self.config.trainer.accumulation_steps == 0:
-                self.optimizer.zero_grad()
 
-        if self.config.trainer.amp:
-            with torch.amp.autocast(self.device, dtype=torch.float16):
+        if self.is_train:
+            with self.accelerator.accumulate(self.model):
                 outputs = self.model(**batch)
                 batch.update(outputs)
 
                 all_losses = self.criterion(**batch)
                 batch.update(all_losses)
 
-                if self.is_train:
-                    self.scaler.scale(
-                        batch["loss"]
-                    ).backward()  # sum of all losses is always called loss
-                    if (step + 1) % self.config.trainer.accumulation_steps == 0:
-                        self._clip_grad_norm()
-                        self.scaler.step(self.optimizer)
-                        self.scaler.update()
-                    if self.lr_scheduler is not None:
-                        self.lr_scheduler.step()
+                self.accelerator.backward(batch["loss"])  # division on accum steps
+                self._clip_grad_norm()
+                self.optimizer.step()
+                if self.lr_scheduler is not None:
+                    self.lr_scheduler.step()
+                self.train_metrics.update("grad_norm", self._get_grad_norm())
+                self.optimizer.zero_grad()
         else:
             outputs = self.model(**batch)
             batch.update(outputs)
@@ -97,13 +92,6 @@ class Trainer(BaseTrainer):
             all_losses = self.criterion(**batch)
             batch.update(all_losses)
 
-            if self.is_train:
-                batch["loss"].backward()  # sum of all losses is always called loss
-                if (step + 1) % self.config.trainer.accumulation_steps == 0:
-                    self._clip_grad_norm()
-                    self.optimizer.step()
-                if self.lr_scheduler is not None:
-                    self.lr_scheduler.step()
         if self.config.trainer.check_nan:
             self.check_nan_inf(**batch)
         # update metrics for each loss (in case of multiple losses)

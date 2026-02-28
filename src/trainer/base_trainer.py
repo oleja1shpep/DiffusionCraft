@@ -1,6 +1,7 @@
 from abc import abstractmethod
 
 import torch
+from accelerate import Accelerator
 from numpy import inf
 from torch.nn.utils import clip_grad_norm_
 from torch.profiler import ProfilerActivity, profile
@@ -62,7 +63,12 @@ class BaseTrainer:
         self.config = config
         self.cfg_trainer = self.config.trainer
 
-        self.device = device
+        self.accelerator = Accelerator(
+            gradient_accumulation_steps=self.config.trainer.accumulation_steps,
+            mixed_precision=self.config.trainer.amp,
+        )
+
+        self.device = self.accelerator.device
         self.skip_oom = skip_oom
 
         self.logger = logger
@@ -73,6 +79,14 @@ class BaseTrainer:
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
         self.batch_transforms = batch_transforms
+
+        self.model, self.optimizer = self.accelerator.prepare(
+            self.model, self.optimizer
+        )
+        for k in dataloaders:
+            dataloaders[k] = self.accelerator.prepare(dataloaders[k])
+        if self.lr_scheduler is not None:
+            self.lr_scheduler = self.accelerator.prepare(self.lr_scheduler)
 
         # define dataloaders
         self.train_dataloader = dataloaders["train"]
@@ -153,8 +167,6 @@ class BaseTrainer:
         self.block2color = read_json(ROOT_PATH / block_data_path / "block2color.json")
         self.idx2block = read_json(ROOT_PATH / block_data_path / "idx2block.json")
 
-        self.scaler = torch.amp.GradScaler(device=device)
-
     def train(self):
         """
         Wrapper around training process to save model on keyboard interrupt.
@@ -183,18 +195,19 @@ class BaseTrainer:
             logs = {"epoch": epoch}
             logs.update(result)
 
-            # print logged information to the screen
-            for key, value in logs.items():
-                self.logger.info(f"    {key:15s}: {value}")
+            if self.accelerator.is_main_process:
+                # print logged information to the screen
+                for key, value in logs.items():
+                    self.logger.info(f"    {key:15s}: {value}")
 
             # evaluate model performance according to configured metric,
             # save best checkpoint as model_best
             best, stop_process, not_improved_count = self._monitor_performance(
                 logs, not_improved_count
             )
-
-            if epoch % self.save_period == 0 or best:
-                self._save_checkpoint(epoch, save_best=best, only_best=True)
+            if self.accelerator.is_main_process:
+                if epoch % self.save_period == 0 or best:
+                    self._save_checkpoint(epoch, save_best=best, only_best=True)
 
             if stop_process:  # early_stop
                 break
@@ -246,24 +259,30 @@ class BaseTrainer:
 
                     # log current results
                     if (batch_idx + 1) % self.log_step == 0:
-                        self.writer.set_step((epoch - 1) * self.epoch_len + batch_idx)
-                        self.logger.debug(
-                            "Train Epoch: {} {} Loss: {:.6f}".format(
-                                epoch, self._progress(batch_idx), batch["loss"].item()
+                        if self.accelerator.is_main_process:
+                            self.writer.set_step(
+                                (epoch - 1) * self.epoch_len + batch_idx
                             )
-                        )
-                        self.writer.add_scalar(
-                            "learning rate", self.lr_scheduler.get_last_lr()[0]
-                        )
+                            self.logger.debug(
+                                "Train Epoch: {} {} Loss: {:.6f}".format(
+                                    epoch,
+                                    self._progress(batch_idx),
+                                    batch["loss"].item(),
+                                )
+                            )
+                            self.writer.add_scalar(
+                                "learning rate", self.lr_scheduler.get_last_lr()[0]
+                            )
+                            self._log_batch(batch_idx, batch)
                         self._log_scalars(self.train_metrics)
-                        self._log_batch(batch_idx, batch)
                         # we don't want to reset train metrics at the start of every epoch
                         # because we are interested in recent train metrics
                         last_train_metrics = self.train_metrics.result()
                         self.train_metrics.reset()
                     if batch_idx + 1 >= self.epoch_len:
                         break
-                prof.export_chrome_trace("trace.json")
+                if self.accelerator.is_main_process:
+                    prof.export_chrome_trace("trace.json")
         else:
             for batch_idx, batch in enumerate(
                 tqdm(self.train_dataloader, desc="train", total=self.epoch_len)
@@ -282,21 +301,20 @@ class BaseTrainer:
                     else:
                         raise e
 
-                self.train_metrics.update("grad_norm", self._get_grad_norm())
-
                 # log current results
                 if (batch_idx + 1) % self.log_step == 0:
-                    self.writer.set_step((epoch - 1) * self.epoch_len + batch_idx)
-                    self.logger.debug(
-                        "Train Epoch: {} {} Loss: {:.6f}".format(
-                            epoch, self._progress(batch_idx), batch["loss"].item()
+                    if self.accelerator.is_main_process:
+                        self.writer.set_step((epoch - 1) * self.epoch_len + batch_idx)
+                        self.logger.debug(
+                            "Train Epoch: {} {} Loss: {:.6f}".format(
+                                epoch, self._progress(batch_idx), batch["loss"].item()
+                            )
                         )
-                    )
-                    self.writer.add_scalar(
-                        "learning rate", self.lr_scheduler.get_last_lr()[0]
-                    )
+                        self.writer.add_scalar(
+                            "learning rate", self.lr_scheduler.get_last_lr()[0]
+                        )
+                        self._log_batch(batch_idx, batch)
                     self._log_scalars(self.train_metrics)
-                    self._log_batch(batch_idx, batch)
                     # we don't want to reset train metrics at the start of every epoch
                     # because we are interested in recent train metrics
                     last_train_metrics = self.train_metrics.result()
@@ -345,12 +363,14 @@ class BaseTrainer:
                             metrics=self.evaluation_metrics,
                         )
                         prof.step()
-                    self.writer.set_step(epoch * self.epoch_len, part)
+                    if self.accelerator.is_main_process:
+                        self.writer.set_step(epoch * self.epoch_len, part)
+                        self._log_batch(
+                            batch_idx, batch, part
+                        )  # log only the last batch during inference
                     self._log_scalars(self.evaluation_metrics)
-                    self._log_batch(
-                        batch_idx, batch, part
-                    )  # log only the last batch during inference
-                prof.export_chrome_trace("trace_val.json")
+                if self.accelerator.is_main_process:
+                    prof.export_chrome_trace("trace_val.json")
         else:
             with torch.no_grad():
                 for batch_idx, batch in tqdm(
@@ -363,11 +383,12 @@ class BaseTrainer:
                         batch,
                         metrics=self.evaluation_metrics,
                     )
-                self.writer.set_step(epoch * self.epoch_len, part)
+                if self.accelerator.is_main_process:
+                    self.writer.set_step(epoch * self.epoch_len, part)
+                    self._log_batch(
+                        batch_idx, batch, part
+                    )  # log only the last batch during inference
                 self._log_scalars(self.evaluation_metrics)
-                self._log_batch(
-                    batch_idx, batch, part
-                )  # log only the last batch during inference
 
         return self.evaluation_metrics.result()
 
@@ -474,10 +495,13 @@ class BaseTrainer:
         Clips the gradient norm by the value defined in
         config.trainer.max_grad_norm
         """
+
         if self.config["trainer"].get("max_grad_norm", None) is not None:
-            clip_grad_norm_(
-                self.model.parameters(), self.config["trainer"]["max_grad_norm"]
-            )
+            if self.accelerator.sync_gradients:
+                self.accelerator.clip_grad_norm_(
+                    self.model.parameters(),
+                    max_norm=self.config["trainer"]["max_grad_norm"],
+                )
 
     @torch.no_grad()
     def _get_grad_norm(self, norm_type=2):
@@ -547,11 +571,23 @@ class BaseTrainer:
         for metric_name in metric_tracker.keys():
             if metric_name in self.special_names:
                 for suff in self.suffixes:
-                    self.writer.add_scalar(
-                        f"{metric_name + suff}", metric_tracker.avg(metric_name + suff)
+                    value = torch.tensor(
+                        metric_tracker.avg(metric_name + suff),
+                        device=self.accelerator.device,
                     )
+                    value = self.accelerator.reduce(value, reduction="mean")
+
+                    if self.accelerator.is_main_process:
+                        self.writer.add_scalar(
+                            f"{metric_name + suff}", value.cpu().item()
+                        )
                 continue
-            self.writer.add_scalar(f"{metric_name}", metric_tracker.avg(metric_name))
+            value = torch.tensor(
+                metric_tracker.avg(metric_name), device=self.accelerator.device
+            )
+            value = self.accelerator.reduce(value, reduction="mean")
+            if self.accelerator.is_main_process:
+                self.writer.add_scalar(f"{metric_name}", value.cpu().item())
 
     def _save_checkpoint(self, epoch, save_best=False, only_best=False):
         """

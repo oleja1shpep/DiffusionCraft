@@ -1,7 +1,6 @@
 from abc import abstractmethod
 
 import torch
-from accelerate import Accelerator
 from numpy import inf
 from torch.nn.utils import clip_grad_norm_
 from torch.profiler import ProfilerActivity, profile
@@ -26,6 +25,7 @@ class BaseTrainer:
         lr_scheduler,
         config,
         device,
+        accelerator,
         dataloaders,
         logger,
         writer,
@@ -63,12 +63,9 @@ class BaseTrainer:
         self.config = config
         self.cfg_trainer = self.config.trainer
 
-        self.accelerator = Accelerator(
-            gradient_accumulation_steps=self.config.trainer.accumulation_steps,
-            mixed_precision=self.config.trainer.amp,
-        )
+        self.accelerator = accelerator
 
-        self.device = self.accelerator.device
+        self.device = device
         self.skip_oom = skip_oom
 
         self.logger = logger
@@ -80,8 +77,8 @@ class BaseTrainer:
         self.lr_scheduler = lr_scheduler
         self.batch_transforms = batch_transforms
 
-        self.model, self.optimizer = self.accelerator.prepare(
-            self.model, self.optimizer
+        self.model, self.optimizer, self.criterion = self.accelerator.prepare(
+            self.model, self.optimizer, self.criterion
         )
         for k in dataloaders:
             dataloaders[k] = self.accelerator.prepare(dataloaders[k])
@@ -174,8 +171,9 @@ class BaseTrainer:
         try:
             self._train_process()
         except KeyboardInterrupt as e:
-            self.logger.info("Saving model on keyboard interrupt")
-            self._save_checkpoint(self._last_epoch, save_best=False)
+            if self.accelerator.is_main_process:
+                self.logger.info("Saving model on keyboard interrupt")
+                self._save_checkpoint(self._last_epoch, save_best=False)
             raise e
 
     def _train_process(self):
@@ -226,8 +224,9 @@ class BaseTrainer:
         self.is_train = True
         self.model.train()
         self.train_metrics.reset()
-        self.writer.set_step((epoch - 1) * self.epoch_len)
-        self.writer.add_scalar("epoch", epoch)
+        if self.accelerator.is_main_process:
+            self.writer.set_step((epoch - 1) * self.epoch_len)
+            self.writer.add_scalar("epoch", epoch)
         if self.config.trainer.profile_train:
             with profile(
                 schedule=torch.profiler.schedule(
@@ -566,8 +565,6 @@ class BaseTrainer:
         Args:
             metric_tracker (MetricTracker): calculated metrics.
         """
-        if self.writer is None:
-            return
         for metric_name in metric_tracker.keys():
             if metric_name in self.special_names:
                 for suff in self.suffixes:
@@ -600,28 +597,33 @@ class BaseTrainer:
                 'model_best.pth'(do not duplicate the checkpoint as
                 checkpoint-epochEpochNumber.pth)
         """
-        arch = type(self.model).__name__
-        state = {
-            "arch": arch,
-            "epoch": epoch,
-            "state_dict": self.model.state_dict(),
-            "optimizer": self.optimizer.state_dict(),
-            "lr_scheduler": self.lr_scheduler.state_dict(),
-            "monitor_best": self.mnt_best,
-            "config": self.config,
-        }
-        filename = str(self.checkpoint_dir / f"checkpoint-epoch{epoch}.pth")
-        if not (only_best and save_best):
-            torch.save(state, filename)
-            if self.config.writer.log_checkpoints:
-                self.writer.add_checkpoint(filename, str(self.checkpoint_dir.parent))
-            self.logger.info(f"Saving checkpoint: {filename} ...")
-        if save_best:
-            best_path = str(self.checkpoint_dir / "model_best.pth")
-            torch.save(state, best_path)
-            if self.config.writer.log_checkpoints:
-                self.writer.add_checkpoint(best_path, str(self.checkpoint_dir.parent))
-            self.logger.info("Saving current best: model_best.pth ...")
+        if self.accelerator.is_main_process:
+            arch = type(self.model).__name__
+            state = {
+                "arch": arch,
+                "epoch": epoch,
+                "state_dict": self.model.state_dict(),
+                "optimizer": self.optimizer.state_dict(),
+                "lr_scheduler": self.lr_scheduler.state_dict(),
+                "monitor_best": self.mnt_best,
+                "config": self.config,
+            }
+            filename = str(self.checkpoint_dir / f"checkpoint-epoch{epoch}.pth")
+            if not (only_best and save_best):
+                torch.save(state, filename)
+                if self.config.writer.log_checkpoints:
+                    self.writer.add_checkpoint(
+                        filename, str(self.checkpoint_dir.parent)
+                    )
+                self.logger.info(f"Saving checkpoint: {filename} ...")
+            if save_best:
+                best_path = str(self.checkpoint_dir / "model_best.pth")
+                torch.save(state, best_path)
+                if self.config.writer.log_checkpoints:
+                    self.writer.add_checkpoint(
+                        best_path, str(self.checkpoint_dir.parent)
+                    )
+                self.logger.info("Saving current best: model_best.pth ...")
 
     def _resume_checkpoint(self, resume_path):
         """

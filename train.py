@@ -2,6 +2,8 @@ import warnings
 
 import hydra
 import torch
+from accelerate import Accelerator
+from accelerate.utils import DistributedDataParallelKwargs
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
@@ -22,16 +24,26 @@ def main(config):
     Args:
         config (DictConfig): hydra experiment config.
     """
+    accelerator = Accelerator(
+        gradient_accumulation_steps=config.trainer.accumulation_steps,
+        mixed_precision=config.trainer.amp,
+        kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True)],
+    )
     set_random_seed(config.trainer.seed)
     OmegaConf.register_new_resolver("divide", lambda x, y: x // y)
     project_config = OmegaConf.to_container(config)
     logger = setup_saving_and_logging(config)
-    writer = instantiate(config.writer, logger, project_config)
-
-    if config.trainer.device == "auto":
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+    if accelerator.is_main_process:
+        writer = instantiate(config.writer, logger, project_config)
     else:
-        device = config.trainer.device
+        writer = None
+
+    device = accelerator.device
+
+    # if config.trainer.device == "auto":
+    #     device = "cuda" if torch.cuda.is_available() else "cpu"
+    # else:
+    #     device = config.trainer.device
 
     # setup data_loader instances
     # batch_transforms should be put on device
@@ -39,7 +51,8 @@ def main(config):
 
     # build model architecture, then print to console
     model = instantiate(config.model).to(device)
-    logger.info(model)
+    if accelerator.is_main_process:
+        logger.info(model)
 
     # get function handles of loss and metrics
     loss_function = instantiate(config.loss_function).to(device)
@@ -62,6 +75,7 @@ def main(config):
         lr_scheduler=lr_scheduler,
         config=config,
         device=device,
+        accelerator=accelerator,
         dataloaders=dataloaders,
         epoch_len=epoch_len,
         logger=logger,

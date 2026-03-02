@@ -80,7 +80,8 @@ def get_dataloaders(config, device):
             dataset=dataset,
             collate_fn=lambda x: collate_fn(x, config.model.num_layers),
             drop_last=(dataset_partition == "train"),
-            shuffle=(dataset_partition == "train"),
+            shuffle=(dataset_partition == "train")
+            and not (config.trainer.get("debug", False)),
             worker_init_fn=set_worker_seed,
         )
         dataloaders[dataset_partition] = partition_dataloader

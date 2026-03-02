@@ -22,8 +22,10 @@ def collate_fn(dataset_items: list[dict], num_layers=3) -> dict:
     result_batch["attributes_masks"] = dict()
     result_batch["attributes_values"] = dict()
     result_batch["block_type_grid"] = []
+    result_batch["idxs"] = []
 
     for item in dataset_items:
+        result_batch["idxs"].append(item["idx"])
         for key in item["attributes_masks"]:
             if key not in result_batch["attributes_masks"]:
                 result_batch["attributes_masks"][key] = []

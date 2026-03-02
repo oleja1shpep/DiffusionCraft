@@ -90,6 +90,7 @@ class BaseDataset(Dataset):
             "block_type_grid": block_type_grid,
             "attributes_values": attributes_values,
             "attributes_masks": attributes_masks,
+            "idx": ind,
         }
         instance_data = self.preprocess_data(instance_data)
 

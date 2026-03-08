@@ -17,7 +17,7 @@ This repository contains a code for DiffusionCraft project
 
 Installation may depend on your task. The general steps are the following:
 
-0. (Optional) Create and activate new environment using [`conda`](https://conda.io/projects/conda/en/latest/user-guide/getting-started.html) or `venv` ([`+pyenv`](https://github.com/pyenv/pyenv)).
+1. (Optional) Create and activate new environment using [`conda`](https://conda.io/projects/conda/en/latest/user-guide/getting-started.html) or `venv` ([`+pyenv`](https://github.com/pyenv/pyenv)).
 
    a. `conda` version:
 
@@ -42,15 +42,10 @@ Installation may depend on your task. The general steps are the following:
    source project_env/bin/activate
    ```
 
-1. Install all required packages
+2. Install all required packages
 
    ```bash
    pip install -r requirements.txt
-   ```
-
-2. Install `pre-commit`:
-   ```bash
-   pre-commit install
    ```
 
 ## How To Use
@@ -67,19 +62,13 @@ To parse schematics into tensors:
 python3 schem2tensor.py --schem-dir [SCHEMATICS_DIR] --output-dir [OUTPUT_DIR] --n_samples [N_SAMPLES]
 ```
 
-To train a model, run the following command:
+To train a VAE, set up `accelerate config` and then run the following command:
 
 ```bash
-python3 train.py -cn=[CONFIG_NAME] HYDRA_CONFIG_ARGUMENTS
+accelerate launch train.py -cn=[CONFIG_NAME] HYDRA_CONFIG_ARGUMENTS
 ```
 
 Where `CONFIG_NAME` is a config from `src/configs` and `HYDRA_CONFIG_ARGUMENTS` are optional arguments.
-
-To run inference (evaluate the model or save predictions):
-
-```bash
-python3 inference.py HYDRA_CONFIG_ARGUMENTS
-```
 
 ## Credits
 

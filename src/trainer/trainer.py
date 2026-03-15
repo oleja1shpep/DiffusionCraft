@@ -78,12 +78,24 @@ class Trainer(BaseTrainer):
                 all_losses = self.criterion(**batch)
                 batch.update(all_losses)
 
+                if self.config.trainer.get("debug", False):
+                    if batch["loss"] > 10 and step > 5000:
+                        self.logger.debug(
+                            f"Step: {step} | HIGH LOSS Batch Indexes: {batch['idxs']}"
+                        )
+
                 self.accelerator.backward(batch["loss"])  # division on accum steps
                 self._clip_grad_norm()
                 self.optimizer.step()
                 if self.lr_scheduler is not None:
                     self.lr_scheduler.step()
-                self.train_metrics.update("grad_norm", self._get_grad_norm())
+                grad_norm = self._get_grad_norm()
+                if self.config.trainer.get("debug", False):
+                    if grad_norm > 5 and step > 5000:
+                        self.logger.debug(
+                            f"Step: {step} | HIGH GRAD NORM Batch Indexes: {batch['idxs']}"
+                        )
+                self.train_metrics.update("grad_norm", grad_norm)
                 self.optimizer.zero_grad()
         else:
             outputs = self.model(**batch)

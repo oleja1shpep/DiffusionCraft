@@ -253,7 +253,9 @@ class BaseTrainer:
                 if self.skip_oom:
                     self.logger.warning("OOM on batch. Skipping batch.")
                     if self.config.trainer.get("debug", False):
-                        self.logger.debug(f"Batch Indexes: {batch['idxs']}")
+                        self.logger.debug(
+                            f"Step: {batch_idx} | OOM Batch Indexes: {batch['idxs']}"
+                        )
                     torch.cuda.empty_cache()  # free some memory
                     continue
                 else:

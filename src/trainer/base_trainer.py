@@ -244,6 +244,7 @@ class BaseTrainer:
             try:
                 batch = self.process_batch(
                     batch_idx,
+                    epoch,
                     batch,
                     metrics=self.train_metrics,
                 )
@@ -254,7 +255,7 @@ class BaseTrainer:
                     self.logger.warning("OOM on batch. Skipping batch.")
                     if self.config.trainer.get("debug", False):
                         self.logger.debug(
-                            f"Step: {batch_idx} | OOM Batch Indexes: {batch['idxs']}"
+                            f"Step: {(epoch - 1) * self.epoch_len + batch_idx} | OOM Batch Indexes: {batch['idxs']}"
                         )
                     torch.cuda.empty_cache()  # free some memory
                     continue
@@ -325,6 +326,7 @@ class BaseTrainer:
             ):
                 batch = self.process_batch(
                     batch_idx,
+                    epoch,
                     batch,
                     metrics=self.evaluation_metrics,
                 )

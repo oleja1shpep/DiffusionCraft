@@ -44,7 +44,7 @@ class Trainer(BaseTrainer):
                     if torch.any(batch[key][k].isnan()):
                         print(f"NaN in batch element: {key} in key {k}")
 
-    def process_batch(self, step, batch: dict, metrics: MetricTracker):
+    def process_batch(self, step, epoch, batch: dict, metrics: MetricTracker):
         """
         Run batch through the model, compute metrics, compute loss,
         and do training step (during training stage).
@@ -66,6 +66,8 @@ class Trainer(BaseTrainer):
         # batch = self.move_batch_to_device(batch) # do not need while using accelerate
         batch = self.transform_batch(batch)  # transform batch on device -- faster
 
+        current_step = (epoch - 1) * self.epoch_len + step
+
         metric_funcs = self.metrics["inference"]
         if self.is_train:
             metric_funcs = self.metrics["train"]
@@ -79,9 +81,9 @@ class Trainer(BaseTrainer):
                 batch.update(all_losses)
 
                 if self.config.trainer.get("debug", False):
-                    if batch["loss"] > 10 and step > 5000:
+                    if batch["loss"] > 5 and current_step > 5000:
                         self.logger.debug(
-                            f"Step: {step} | HIGH LOSS Batch Indexes: {batch['idxs']}"
+                            f"Step: {current_step} | HIGH LOSS Batch Indexes: {batch['idxs']}"
                         )
 
                 self.accelerator.backward(batch["loss"])  # division on accum steps
@@ -91,9 +93,9 @@ class Trainer(BaseTrainer):
                     self.lr_scheduler.step()
                 grad_norm = self._get_grad_norm()
                 if self.config.trainer.get("debug", False):
-                    if grad_norm > 5 and step > 5000:
+                    if grad_norm > 4 and current_step > 5000:
                         self.logger.debug(
-                            f"Step: {step} | HIGH GRAD NORM Batch Indexes: {batch['idxs']}"
+                            f"Step: {current_step} | HIGH GRAD NORM Batch Indexes: {batch['idxs']}"
                         )
                 self.train_metrics.update("grad_norm", grad_norm)
                 self.optimizer.zero_grad()

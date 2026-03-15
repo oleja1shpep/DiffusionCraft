@@ -97,6 +97,16 @@ def generate_dimensions(level, minx, maxx, minz, maxz):
         lowest_air_idx -= 1
     lowest_air_idx = max(lowest_air_idx - LOW_IDX_OFFSET, 0)
     y1 = air_blocks[lowest_air_idx][0]
+
+    # ограничение на высоту
+    height = y2 - y1
+    if height < MIN_SELECTION_DIM:
+        y1 = max(y2 - MIN_SELECTION_DIM, MIN_Y_COORD)
+        if y2 - y1 < MIN_SELECTION_DIM:
+            return None
+    elif height > MAX_SELECTION_DIM:
+        y1 = y2 - MAX_SELECTION_DIM
+
     return x1, x2, y1, y2, z1, z2
 
 

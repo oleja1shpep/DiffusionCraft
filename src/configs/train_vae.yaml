@@ -26,6 +26,7 @@ trainer:
   amp: 'no'
   profile_train: False
   profile_val: False
+  memory_snapshot: False
   debug: False
   n_epochs: 100
   epoch_len: 1000

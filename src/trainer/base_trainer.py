@@ -228,103 +228,63 @@ class BaseTrainer:
             self.writer.set_step((epoch - 1) * self.epoch_len)
             self.writer.add_scalar("epoch", epoch)
         if self.config.trainer.profile_train:
-            with profile(
+            prof = profile(
                 schedule=torch.profiler.schedule(
                     wait=10, warmup=10, active=3, repeat=1
                 ),
                 activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
                 record_shapes=True,
                 with_stack=True,
-            ) as prof:
-                for batch_idx, batch in enumerate(
-                    tqdm(self.train_dataloader, desc="train", total=self.epoch_len)
-                ):
-                    try:
-                        batch = self.process_batch(
-                            batch_idx,
-                            batch,
-                            metrics=self.train_metrics,
-                        )
-                        prof.step()
-                    except torch.cuda.OutOfMemoryError as e:
-                        if self.skip_oom:
-                            self.logger.warning("OOM on batch. Skipping batch.")
-                            if self.config.trainer.get("debug", False):
-                                self.logger.debug(f"Batch Indexes: {batch['idxs']}")
-                            torch.cuda.empty_cache()  # free some memory
-                            continue
-                        else:
-                            raise e
+            )
+            prof.start()
 
-                    self.train_metrics.update("grad_norm", self._get_grad_norm())
+        for batch_idx, batch in enumerate(
+            tqdm(self.train_dataloader, desc="train", total=self.epoch_len)
+        ):
+            try:
+                batch = self.process_batch(
+                    batch_idx,
+                    batch,
+                    metrics=self.train_metrics,
+                )
+                if self.config.trainer.profile_train:
+                    prof.step()
+            except torch.cuda.OutOfMemoryError as e:
+                if self.skip_oom:
+                    self.logger.warning("OOM on batch. Skipping batch.")
+                    if self.config.trainer.get("debug", False):
+                        self.logger.debug(f"Batch Indexes: {batch['idxs']}")
+                    torch.cuda.empty_cache()  # free some memory
+                    continue
+                else:
+                    raise e
 
-                    # log current results
-                    if (batch_idx + 1) % self.log_step == 0:
-                        if self.accelerator.is_main_process:
-                            self.writer.set_step(
-                                (epoch - 1) * self.epoch_len + batch_idx
-                            )
-                            self.logger.debug(
-                                "Train Epoch: {} {} Loss: {:.6f}".format(
-                                    epoch,
-                                    self._progress(batch_idx),
-                                    batch["loss"].item(),
-                                )
-                            )
-                            self.writer.add_scalar(
-                                "learning rate", self.lr_scheduler.get_last_lr()[0]
-                            )
-                            self._log_batch(batch_idx, batch)
-                        self._log_scalars(self.train_metrics)
-                        # we don't want to reset train metrics at the start of every epoch
-                        # because we are interested in recent train metrics
-                        last_train_metrics = self.train_metrics.result()
-                        self.train_metrics.reset()
-                    if batch_idx + 1 >= self.epoch_len:
-                        break
+            # log current results
+            if (batch_idx + 1) % self.log_step == 0:
                 if self.accelerator.is_main_process:
-                    prof.export_chrome_trace("trace.json")
-        else:
-            for batch_idx, batch in enumerate(
-                tqdm(self.train_dataloader, desc="train", total=self.epoch_len)
-            ):
-                try:
-                    batch = self.process_batch(
-                        batch_idx,
-                        batch,
-                        metrics=self.train_metrics,
+                    self.writer.set_step((epoch - 1) * self.epoch_len + batch_idx)
+                    self.logger.debug(
+                        "Train Epoch: {} {} Loss: {:.6f}".format(
+                            epoch, self._progress(batch_idx), batch["loss"].item()
+                        )
                     )
-                except torch.cuda.OutOfMemoryError as e:
-                    if self.skip_oom:
-                        self.logger.warning("OOM on batch. Skipping batch.")
-                        if self.config.trainer.get("debug", False):
-                            self.logger.debug(f"Batch Indexes: {batch['idxs']}")
-                        torch.cuda.empty_cache()  # free some memory
-                        continue
-                    else:
-                        raise e
-
-                # log current results
-                if (batch_idx + 1) % self.log_step == 0:
-                    if self.accelerator.is_main_process:
-                        self.writer.set_step((epoch - 1) * self.epoch_len + batch_idx)
-                        self.logger.debug(
-                            "Train Epoch: {} {} Loss: {:.6f}".format(
-                                epoch, self._progress(batch_idx), batch["loss"].item()
-                            )
-                        )
-                        self.writer.add_scalar(
-                            "learning rate", self.lr_scheduler.get_last_lr()[0]
-                        )
-                        self._log_batch(batch_idx, batch)
-                    self._log_scalars(self.train_metrics)
-                    # we don't want to reset train metrics at the start of every epoch
-                    # because we are interested in recent train metrics
-                    last_train_metrics = self.train_metrics.result()
-                    self.train_metrics.reset()
-                if batch_idx + 1 >= self.epoch_len:
-                    break
+                    self.writer.add_scalar(
+                        "learning rate", self.lr_scheduler.get_last_lr()[0]
+                    )
+                    self._log_batch(batch_idx, batch)
+                self._log_scalars(self.train_metrics)
+                # we don't want to reset train metrics at the start of every epoch
+                # because we are interested in recent train metrics
+                last_train_metrics = self.train_metrics.result()
+                self.train_metrics.reset()
+            if batch_idx + 1 >= self.epoch_len:
+                break
         logs = last_train_metrics
+
+        if self.config.trainer.profile_train:
+            prof.stop()
+            if self.accelerator.is_main_process:
+                prof.export_chrome_trace("trace.json")
 
         # Run val/test
         for part, dataloader in self.evaluation_dataloaders.items():
@@ -348,50 +308,36 @@ class BaseTrainer:
         self.model.eval()
         self.evaluation_metrics.reset()
         if self.config.trainer.profile_val:
-            with profile(
+            prof = profile(
                 schedule=torch.profiler.schedule(wait=3, warmup=3, active=3, repeat=1),
                 activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
                 record_shapes=True,
                 with_stack=True,
-            ) as prof:
-                with torch.no_grad():
-                    for batch_idx, batch in tqdm(
-                        enumerate(dataloader),
-                        desc=part,
-                        total=len(dataloader),
-                    ):
-                        batch = self.process_batch(
-                            batch_idx,
-                            batch,
-                            metrics=self.evaluation_metrics,
-                        )
-                        prof.step()
-                    if self.accelerator.is_main_process:
-                        self.writer.set_step(epoch * self.epoch_len, part)
-                        self._log_batch(
-                            batch_idx, batch, part
-                        )  # log only the last batch during inference
-                    self._log_scalars(self.evaluation_metrics)
-                if self.accelerator.is_main_process:
-                    prof.export_chrome_trace("trace_val.json")
-        else:
-            with torch.no_grad():
-                for batch_idx, batch in tqdm(
-                    enumerate(dataloader),
-                    desc=part,
-                    total=len(dataloader),
-                ):
-                    batch = self.process_batch(
-                        batch_idx,
-                        batch,
-                        metrics=self.evaluation_metrics,
-                    )
-                if self.accelerator.is_main_process:
-                    self.writer.set_step(epoch * self.epoch_len, part)
-                    self._log_batch(
-                        batch_idx, batch, part
-                    )  # log only the last batch during inference
-                self._log_scalars(self.evaluation_metrics)
+            )
+            prof.start()
+        with torch.no_grad():
+            for batch_idx, batch in tqdm(
+                enumerate(dataloader),
+                desc=part,
+                total=len(dataloader),
+            ):
+                batch = self.process_batch(
+                    batch_idx,
+                    batch,
+                    metrics=self.evaluation_metrics,
+                )
+                if self.config.trainer.profile_val:
+                    prof.step()
+            if self.accelerator.is_main_process:
+                self.writer.set_step(epoch * self.epoch_len, part)
+                self._log_batch(
+                    batch_idx, batch, part
+                )  # log only the last batch during inference
+            self._log_scalars(self.evaluation_metrics)
+        if self.config.trainer.profile_val:
+            prof.stop()
+            if self.accelerator.is_main_process:
+                prof.export_chrome_trace("trace_val.json")
 
         return self.evaluation_metrics.result()
 

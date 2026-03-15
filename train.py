@@ -1,4 +1,6 @@
+import pickle
 import warnings
+from pathlib import Path
 
 import hydra
 import torch
@@ -24,6 +26,10 @@ def main(config):
     Args:
         config (DictConfig): hydra experiment config.
     """
+    if config.trainer.memory_snapshot:
+        snapshots_dir = Path("./snapshots")
+        snapshots_dir.mkdir(exist_ok=True)
+        torch.cuda.memory._record_memory_history()
     accelerator = Accelerator(
         gradient_accumulation_steps=config.trainer.accumulation_steps,
         mixed_precision=config.trainer.amp,
@@ -61,7 +67,7 @@ def main(config):
     # build optimizer, learning rate scheduler
     trainable_params = filter(lambda p: p.requires_grad, model.parameters())
     optimizer = instantiate(config.optimizer, params=trainable_params)
-    config.lr_scheduler.steps_per_epoch *= accelerator.num_processes 
+    config.lr_scheduler.steps_per_epoch *= accelerator.num_processes
     lr_scheduler = instantiate(config.lr_scheduler, optimizer=optimizer)
 
     # epoch_len = number of iterations for iteration-based training
@@ -86,6 +92,12 @@ def main(config):
     )
 
     trainer.train()
+    if config.trainer.memory_snapshot:
+        with open(
+            snapshots_dir / f"rank{accelerator.process_index}.pickle",
+            "wb",
+        ) as output:
+            pickle.dump(torch.cuda.memory._snapshot(), output)
 
 
 if __name__ == "__main__":

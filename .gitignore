@@ -111,6 +111,7 @@ outputs/
 *.sh
 trace.json
 trace_val.json
+scripts/
 
 # editor, os cache directory
 .vscode/

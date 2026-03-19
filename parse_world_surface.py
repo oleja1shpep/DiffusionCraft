@@ -101,9 +101,12 @@ def generate_dimensions(level, minx, maxx, minz, maxz):
     # ограничение на высоту
     height = y2 - y1
     if height < MIN_SELECTION_DIM:
-        y1 = max(y2 - MIN_SELECTION_DIM, MIN_Y_COORD)
+        y2 = min(y2 + (MIN_SELECTION_DIM - height), MAX_Y_COORD)
         if y2 - y1 < MIN_SELECTION_DIM:
-            return None
+            y1 = max(y2 - MIN_SELECTION_DIM, MIN_Y_COORD)
+            if y2 - y1 < MIN_SELECTION_DIM:
+                return None
+
     elif height > MAX_SELECTION_DIM:
         y1 = y2 - MAX_SELECTION_DIM
 

@@ -62,12 +62,33 @@ class VAEDataset(BaseDataset):
         """
         index = []
         data_path = ROOT_PATH / "data" / "dataset" / name
+        extended_data_path = ROOT_PATH / "data" / "dataset" / f"{name}_extended"
         data_path.mkdir(exist_ok=True, parents=True)
+        extended_data_path.mkdir(exist_ok=True, parents=True)
 
         # In this example, we create a synthesized dataset. However, in real
         # tasks, you should process dataset metadata and append it
         # to index. See other branches.
-        for structure in tqdm(os.listdir(data_path), desc="Creating Vae Dataset"):
+        for structure in tqdm(
+            os.listdir(data_path), desc=f"Creating Vae Dataset: {name}"
+        ):
+            structire_path = data_path / structure
+
+            if ("attributes_data.pt" not in os.listdir(structire_path)) or (
+                "block_type.pt" not in os.listdir(structire_path)
+            ):
+                continue
+
+            # parse dataset metadata and append it to index
+            index.append(
+                {
+                    "structire_path": str(structire_path),
+                }
+            )
+
+        for structure in tqdm(
+            os.listdir(extended_data_path), desc=f"Extending Vae Dataset: {name}"
+        ):
             structire_path = data_path / structure
 
             if ("attributes_data.pt" not in os.listdir(structire_path)) or (

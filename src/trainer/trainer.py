@@ -81,9 +81,10 @@ class Trainer(BaseTrainer):
                 batch.update(all_losses)
 
                 if self.config.trainer.get("debug", False):
-                    if batch["loss"] > 5 and current_step > 5000:
+                    loss = batch["loss"].detach().item()
+                    if loss > 5 and current_step > 5000:
                         self.logger.debug(
-                            f"Step: {current_step} | HIGH LOSS Batch Indexes: {batch['idxs']}"
+                            f"Step: {current_step} | HIGH LOSS: {loss} | Batch Indexes: {batch['idxs']}"
                         )
 
                 self.accelerator.backward(batch["loss"])  # division on accum steps
@@ -95,7 +96,7 @@ class Trainer(BaseTrainer):
                 if self.config.trainer.get("debug", False):
                     if grad_norm > 4 and current_step > 5000:
                         self.logger.debug(
-                            f"Step: {current_step} | HIGH GRAD NORM Batch Indexes: {batch['idxs']}"
+                            f"Step: {current_step} | HIGH GRAD NORM: {grad_norm.detach().cpu().item()} | Batch Indexes: {batch['idxs']}"
                         )
                 self.train_metrics.update("grad_norm", grad_norm)
                 self.optimizer.zero_grad()

@@ -80,7 +80,32 @@ class KLLoss(nn.Module):
         self.kl_weight = kl_weight
 
     def forward(self, latents: DiagonalGaussianDistribution, **batch):
-        return {"kl_loss": latents.kl().mean() * self.kl_weight}
+        if self.kl_weight == 0:
+            loss = torch.tensor(0, device=latents.parameters.device)
+        else:
+            loss = latents.kl().mean() * self.kl_weight
+        return {"kl_loss": loss}
+
+
+class FeatureLoss(nn.Module):
+    def __init__(self, loss_type: str = "L1", feature_loss_weight: float = 1.0):
+        super().__init__()
+        self.weight = feature_loss_weight
+        if loss_type is None:
+            self.loss = None
+        elif loss_type == "L1":
+            self.loss = nn.L1Loss()
+        elif loss_type == "L2":
+            self.loss = nn.MSELoss()
+        else:
+            raise RuntimeError(f"Invalid Loss Type: {loss_type}")
+
+    def forward(self, gt_features, pred_features, **batch):
+        if self.loss is None:
+            loss = torch.tensor(0, device=gt_features.device)
+        else:
+            loss = self.loss(pred_features, gt_features) * self.weight
+        return {"feature_loss": loss}
 
 
 class VAELoss(nn.Module):
@@ -88,17 +113,19 @@ class VAELoss(nn.Module):
     Example of a loss function to use.
     """
 
-    def __init__(self, kl_weight=1.0):
+    def __init__(self, kl_weight=1.0, feature_loss_type=None, feature_loss_weight=1.0):
         super().__init__()
         self.block_type_loss = BlockTypeLoss()
         self.attribute_loss = AttributeLoss()
         self.kl_loss = KLLoss(kl_weight)
+        self.feature_loss = FeatureLoss(feature_loss_type, feature_loss_weight)
 
     def forward(self, **batch):
         return_dict = dict()
         return_dict.update(self.block_type_loss(**batch))
         return_dict.update(self.attribute_loss(**batch))
         return_dict.update(self.kl_loss(**batch))
+        return_dict.update(self.feature_loss(**batch))
 
         total_loss = 0
 

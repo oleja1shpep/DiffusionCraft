@@ -3,6 +3,6 @@ project_name: "vae-training"
 workspace: olegryabov228
 run_name: "bebra"
 mode: "online"
-loss_names: ["loss", "kl_loss"] # which losses to log (useful for multi-loss tasks, s.a. GANs)
+loss_names: ["loss", "kl_loss", "feature_loss", "block_type_loss"] # which losses to log (useful for multi-loss tasks, s.a. GANs)
 log_checkpoints: False # set to True if you want to log save_dir with checkpoints to W&B
 id_length: 32 # length of the run_id

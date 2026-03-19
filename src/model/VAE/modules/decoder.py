@@ -241,4 +241,4 @@ class Decoder(nn.Module):
         block_type_logits = self.block_type_decoder(h)  # (B, W, H, L, num_blocks)
         pred_block_type_grid = block_type_logits.argmax(-1)
         attributes_logits = self.attribute_decoder(h, pred_block_type_grid, **batch)
-        return block_type_logits, pred_block_type_grid, attributes_logits
+        return block_type_logits, pred_block_type_grid, attributes_logits, h

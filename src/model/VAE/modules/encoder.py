@@ -202,11 +202,11 @@ class Encoder(nn.Module):
         Returns:
             latents (Tensor): a tensor of shape (B, z_dim * 2, w, h, l)
         """
-        h = self.block_type_encoder(**batch) + self.attribute_encoder(
+        features = self.block_type_encoder(**batch) + self.attribute_encoder(
             **batch
         )  # (B, W, H, L, D)
 
-        h = h.permute(0, 4, 1, 2, 3)  # (B, D, W, H, L)
+        h = features.permute(0, 4, 1, 2, 3)  # (B, D, W, H, L)
 
         # downsampling
         for i_level in range(self.num_layers):
@@ -223,4 +223,4 @@ class Encoder(nn.Module):
         h = self.norm_out(h)
         h = nonlinearity(h)
         h = self.conv_out(h)
-        return h
+        return h, features.detach()  # detach for encoder endependence from decoder

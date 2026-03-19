@@ -19,6 +19,8 @@ lr_scheduler:
 loss_function:
   _target_: src.loss.VAELoss
   kl_weight: 0.000001
+  feature_loss_type: null # L1 or L2
+  feature_loss_weight: 1
 trainer:
   log_step: 100
   check_nan: False

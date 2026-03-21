@@ -38,7 +38,7 @@ def main(config):
     set_random_seed(config.trainer.seed)
     OmegaConf.register_new_resolver("divide", lambda x, y: x // y)
     project_config = OmegaConf.to_container(config)
-    logger = setup_saving_and_logging(config)
+    logger = setup_saving_and_logging(config, accelerator)
     if accelerator.is_main_process:
         writer = instantiate(config.writer, logger, project_config)
     else:

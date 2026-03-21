@@ -86,7 +86,7 @@ def log_git_commit_and_patch(save_dir):
         subprocess.call(["git", "diff", "HEAD"], stdout=f)
 
 
-def resume_config(save_dir):
+def resume_config(save_dir, accelerator=None):
     """
     Get run_id from resume config to continue logging
     to the same experiment.
@@ -98,11 +98,12 @@ def resume_config(save_dir):
     """
     saved_config = OmegaConf.load(save_dir / "config.yaml")
     run_id = saved_config.writer.run_id
-    print(f"Resuming training from run {run_id}...")
+    if accelerator is None or accelerator.is_main_process:
+        print(f"Resuming training from run {run_id}...")
     return run_id
 
 
-def saving_init(save_dir, config):
+def saving_init(save_dir, config, accelerator=None):
     """
     Initialize saving by getting run_id.
 
@@ -117,14 +118,15 @@ def saving_init(save_dir, config):
         if config.trainer.get("resume_from") is not None:
             run_id = resume_config(save_dir)
         elif config.trainer.override:
-            print(f"Overriding save directory '{save_dir}'...")
-            shutil.rmtree(str(save_dir))
+            if accelerator is None or accelerator.is_main_process:
+                print(f"Overriding save directory '{save_dir}'...")
+                shutil.rmtree(str(save_dir))
         elif not config.trainer.override:
             raise ValueError(
                 "Save directory exists. Change the name or set override=True"
             )
-
-    save_dir.mkdir(exist_ok=True, parents=True)
+    if accelerator is None or accelerator.is_main_process:
+        save_dir.mkdir(exist_ok=True, parents=True)
 
     if run_id is None:
         run_id = generate_id(length=config.writer.id_length)
@@ -134,11 +136,11 @@ def saving_init(save_dir, config):
     OmegaConf.set_struct(config, True)
 
     OmegaConf.save(config, save_dir / "config.yaml")
+    if accelerator is None or accelerator.is_main_process:
+        log_git_commit_and_patch(save_dir)
 
-    log_git_commit_and_patch(save_dir)
 
-
-def setup_saving_and_logging(config):
+def setup_saving_and_logging(config, accelerator=None):
     """
     Initialize the logger, writer, and saving directory.
     The saving directory is defined by the run_name and save_dir
@@ -150,7 +152,7 @@ def setup_saving_and_logging(config):
         logger (Logger): logger that logs output.
     """
     save_dir = ROOT_PATH / config.trainer.save_dir / config.writer.run_name
-    saving_init(save_dir, config)
+    saving_init(save_dir, config, accelerator)
 
     if config.trainer.get("resume_from") is not None:
         setup_logging(save_dir, append=True)

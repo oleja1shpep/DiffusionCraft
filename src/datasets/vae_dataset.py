@@ -89,7 +89,7 @@ class VAEDataset(BaseDataset):
         for structure in tqdm(
             os.listdir(extended_data_path), desc=f"Extending Vae Dataset: {name}"
         ):
-            structire_path = data_path / structure
+            structire_path = extended_data_path / structure
 
             if ("attributes_data.pt" not in os.listdir(structire_path)) or (
                 "block_type.pt" not in os.listdir(structire_path)

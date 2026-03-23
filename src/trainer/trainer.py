@@ -80,12 +80,11 @@ class Trainer(BaseTrainer):
                 all_losses = self.criterion(**batch)
                 batch.update(all_losses)
 
-                if self.config.trainer.get("debug", False):
-                    loss = batch["loss"].detach().item()
-                    if loss > 5 and current_step > 5000:
-                        self.logger.debug(
-                            f"Step: {current_step} | HIGH LOSS: {loss} | Batch Indexes: {batch['idxs']}"
-                        )
+                loss = batch["loss"].detach().item()
+                if loss > 5 and current_step > 5000:
+                    self.logger.debug(
+                        f"Step: {current_step} | HIGH LOSS: {loss} | Batch Indexes: {batch['idxs']}"
+                    )
 
                 self.accelerator.backward(batch["loss"])  # division on accum steps
                 self._clip_grad_norm()
@@ -93,11 +92,11 @@ class Trainer(BaseTrainer):
                 if self.lr_scheduler is not None:
                     self.lr_scheduler.step()
                 grad_norm = self._get_grad_norm()
-                if self.config.trainer.get("debug", False):
-                    if grad_norm > 4 and current_step > 5000:
-                        self.logger.debug(
-                            f"Step: {current_step} | HIGH GRAD NORM: {grad_norm.detach().cpu().item()} | Batch Indexes: {batch['idxs']}"
-                        )
+
+                if grad_norm > 4 and current_step > 5000:
+                    self.logger.debug(
+                        f"Step: {current_step} | HIGH GRAD NORM: {grad_norm.detach().cpu().item()} | Batch Indexes: {batch['idxs']}"
+                    )
                 self.train_metrics.update("grad_norm", grad_norm)
                 self.optimizer.zero_grad()
         else:

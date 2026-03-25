@@ -305,9 +305,24 @@ def filter_attribute_dict(
             else:
                 final_attr_dict[attr] = attr_dict[attr]
 
-    for attr in final_attr_dict:
+    block_attrs = filtered_blocks_dict[block]
+    for attr in block_attrs:
+        if attr not in final_attr_dict:
+            final_attr_dict[attr] = 0
+            continue
         value = final_attr_dict[attr]
-        block_attrs = filtered_blocks_dict[block]
+        if block.endswith("_wall") and value not in block_attrs[attr]:
+            if value == "true":
+                final_attr_dict[attr] = sorted(block_attrs[attr]).index("low")
+            elif value == "false":
+                final_attr_dict[attr] = sorted(block_attrs[attr]).index("none")
+            else:
+                print("WTF ERROR")
+                import pdb
+
+                pdb.set_trace()
+            continue
+
         final_attr_dict[attr] = sorted(block_attrs[attr]).index(value)
 
     return final_attr_dict
@@ -413,7 +428,12 @@ def parse_schematics(
             except Exception as e:
                 print(f"Error: {e}\nFilename: {schm}")
                 continue
-            length, width, height = schem["Length"], schem["Width"], schem["Height"]
+            try:
+                length, width, height = schem["Length"], schem["Width"], schem["Height"]
+            except Exception as e:
+                print(f"Error: {e}\nFilename: {schm}")
+                continue
+
             del schem
 
             coord2byte, palette = _initFromFile(file)
@@ -459,15 +479,31 @@ def parse_schematics(
 
                 attribute_values = []
                 for x, y, z in idxs:
-                    attribute_values.append(
-                        attributes[(x.item(), y.item(), z.item())][attr]
-                    )
+                    xyz_key = (x.item(), y.item(), z.item())
+                    # if attr not in attributes[xyz_key]:
+                    #     attributes[xyz_key][attr] = 0
 
-                attributes_data[head_key] = dict()
-                attributes_data[head_key]["mask"] = mask  # bool
-                attributes_data[head_key]["values"] = torch.tensor(
-                    attribute_values, dtype=torch.int8
-                )  # int8
+                    try:
+                        attribute_values.append(attributes[xyz_key][attr])
+                    except Exception as e:
+                        print(e)
+                        print(schm)
+                        import pdb
+
+                        pdb.set_trace()
+                        print("Hello")
+                try:
+                    attributes_data[head_key] = dict()
+                    attributes_data[head_key]["mask"] = mask  # bool
+                    attributes_data[head_key]["values"] = torch.tensor(
+                        attribute_values, dtype=torch.int8
+                    )  # int8
+                except Exception as e:
+                    print(e)
+                    import pdb
+
+                    pdb.set_trace()
+                    print("ERROR")
 
             torch.save(
                 attributes_data, output_dir / structure_name / "attributes_data.pt"

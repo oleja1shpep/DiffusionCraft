@@ -95,7 +95,7 @@ class Trainer(BaseTrainer):
 
                 if grad_norm > 4 and current_step > 5000:
                     self.logger.debug(
-                        f"Step: {current_step} | HIGH GRAD NORM: {grad_norm.detach().cpu().item()} | Batch Indexes: {batch['idxs']}"
+                        f"Step: {current_step} | HIGH GRAD NORM: {grad_norm} | Batch Indexes: {batch['idxs']}"
                     )
                 self.train_metrics.update("grad_norm", grad_norm)
                 self.optimizer.zero_grad()

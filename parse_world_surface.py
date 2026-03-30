@@ -11,13 +11,23 @@ from tqdm import tqdm
 MIN_SELECTION_DIM = 16
 MAX_SELECTION_DIM = 16 * 4
 
+
+OVERWORLD = "minecraft:overworld"
+NETHER = "minecraft:the_nether"
+END = "minecraft:the_end"
+
+MIN_Y_COORD = {OVERWORLD: 20, NETHER: 20, END: 40}
+
+MAX_Y_COORD = {
+    OVERWORLD: 201,
+    NETHER: 120,
+    END: 200,
+}
+
+
 MIN_AIR_THRESHOLD = 0.1
-MIN_Y_COORD = 20
-MAX_Y_COORD = 201
 CONV_WIDTH = 5
 LOW_IDX_OFFSET = 2
-
-LEVEL_DIMENSION = "minecraft:overworld"
 
 
 def create_parser():
@@ -32,6 +42,8 @@ def create_parser():
         "--output-dir",
         required=True,
     )
+
+    parser.add_argument("--dim", required=False, default=OVERWORLD)
 
     parser.add_argument(
         "--rx",
@@ -53,7 +65,7 @@ def create_parser():
     return parser
 
 
-def generate_dimensions(level, minx, maxx, minz, maxz):
+def generate_dimensions(level, minx, maxx, minz, maxz, dimension=OVERWORLD):
     def get_air_blocks_p_in_selection(x1, x2, y1, y2, z1, z2):
         AIR_BLOCK = "universal_minecraft:air"
         volume = (x2 - x1 + 1) * (y2 - y1 + 1) * (z2 - z1 + 1)
@@ -61,10 +73,7 @@ def generate_dimensions(level, minx, maxx, minz, maxz):
         for x in range(x1, x2 + 1):
             for y in range(y1, y2 + 1):
                 for z in range(z1, z2 + 1):
-                    if (
-                        str(level.get_block(x, y, z, dimension=LEVEL_DIMENSION))
-                        == AIR_BLOCK
-                    ):
+                    if str(level.get_block(x, y, z, dimension=dimension)) == AIR_BLOCK:
                         air_count += 1
         return air_count / volume
 
@@ -80,8 +89,8 @@ def generate_dimensions(level, minx, maxx, minz, maxz):
     z2 = z1 + randint(MIN_SELECTION_DIM, MAX_SELECTION_DIM)
     air_blocks = []
     for y_low, y_high in zip(
-        range(MIN_Y_COORD, MAX_Y_COORD - CONV_WIDTH),
-        range(MIN_Y_COORD + CONV_WIDTH, MAX_Y_COORD),
+        range(MIN_Y_COORD[dimension], MAX_Y_COORD[dimension] - CONV_WIDTH),
+        range(MIN_Y_COORD[dimension] + CONV_WIDTH, MAX_Y_COORD[dimension]),
     ):
         air_blocks_moving_avg = get_air_blocks_p_in_selection(
             x1, x2, y_low, y_high, z1, z2
@@ -101,9 +110,9 @@ def generate_dimensions(level, minx, maxx, minz, maxz):
     # ограничение на высоту
     height = y2 - y1
     if height < MIN_SELECTION_DIM:
-        y2 = min(y2 + (MIN_SELECTION_DIM - height), MAX_Y_COORD)
+        y2 = min(y2 + (MIN_SELECTION_DIM - height), MAX_Y_COORD[dimension])
         if y2 - y1 < MIN_SELECTION_DIM:
-            y1 = max(y2 - MIN_SELECTION_DIM, MIN_Y_COORD)
+            y1 = max(y2 - MIN_SELECTION_DIM, MIN_Y_COORD[dimension])
             if y2 - y1 < MIN_SELECTION_DIM:
                 return None
 
@@ -113,7 +122,7 @@ def generate_dimensions(level, minx, maxx, minz, maxz):
     return x1, x2, y1, y2, z1, z2
 
 
-def save_selection(level, selection, path):
+def save_selection(level, selection, dimension, path):
     wrapper = SpongeSchemFormatWrapper(path)
     wrapper.create_and_open(
         platform="java", version=(1, 20, 1), bounds=selection, overwrite=True
@@ -122,7 +131,7 @@ def save_selection(level, selection, path):
     wrapper_dimension = wrapper.dimensions[0]
     for cx, cz in selection.chunk_locations():
         try:
-            chunk = level.get_chunk(cx, cz, LEVEL_DIMENSION)
+            chunk = level.get_chunk(cx, cz, dimension)
             wrapper.commit_chunk(chunk, wrapper_dimension)
         except Exception:
             continue
@@ -130,29 +139,37 @@ def save_selection(level, selection, path):
     wrapper.close()
 
 
-def create_sample(level, world_name, minx, maxx, minz, maxz, output_dir_path, index):
-    dimensions = generate_dimensions(level, minx, maxx, minz, maxz)
+def create_sample(
+    level, world_name, minx, maxx, minz, maxz, output_dir_path, dimension
+):
+    dimensions = generate_dimensions(level, minx, maxx, minz, maxz, dimension)
     if not dimensions:
         return
     x1, x2, y1, y2, z1, z2 = dimensions
     output_path = os.path.join(
-        output_dir_path, f"{world_name}_{x1}_{x2}_{y1}_{y2}_{z1}_{z2}.schem"
+        output_dir_path, f"{world_name}_{dimension}_{x1}_{x2}_{y1}_{y2}_{z1}_{z2}.schem"
     )
     save_selection(
-        level, SelectionGroup(SelectionBox((x1, y1, z1), (x2, y2, z2))), output_path
+        level,
+        SelectionGroup(SelectionBox((x1, y1, z1), (x2, y2, z2))),
+        dimension,
+        output_path,
     )
 
 
 def main(args):
     minx, maxx = -args.rx, args.rx
     minz, maxz = -args.rz, args.rz
+    dimension = args.dim
 
     level = load_level(args.world_dir)
     world_name = Path(args.world_dir).stem
     output_dir_path = os.path.join(".", args.output_dir)
     os.makedirs(output_dir_path, exist_ok=True)
     for i in tqdm(range(args.n_samples)):
-        create_sample(level, world_name, minx, maxx, minz, maxz, output_dir_path, i)
+        create_sample(
+            level, world_name, minx, maxx, minz, maxz, output_dir_path, dimension
+        )
 
 
 if __name__ == "__main__":

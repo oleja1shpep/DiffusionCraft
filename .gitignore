@@ -112,6 +112,7 @@ outputs/
 trace.json
 trace_val.json
 scripts/
+snapshots*
 
 # editor, os cache directory
 .vscode/

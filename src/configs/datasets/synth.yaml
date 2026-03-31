@@ -1,0 +1,5 @@
+train:
+  _target_: src.datasets.SyntheticDataset
+  length: 16
+  volume: 64
+  attr_pair_per_block: 3

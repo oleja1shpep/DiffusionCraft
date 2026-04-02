@@ -20,6 +20,8 @@ loss_function:
   feature_loss_type: null # L1 or L2
   feature_loss_weight: 1
 trainer:
+  mem_start: 9000
+  mem_end: 9008
   log_step: 100
   check_nan: False
   accumulation_steps: 8

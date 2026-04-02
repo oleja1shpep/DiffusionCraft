@@ -1,4 +1,6 @@
+import pickle
 from abc import abstractmethod
+from pathlib import Path
 
 import torch
 from numpy import inf
@@ -241,6 +243,25 @@ class BaseTrainer:
         for batch_idx, batch in enumerate(
             tqdm(self.train_dataloader, desc="train", total=self.epoch_len)
         ):
+            current_step = (epoch - 1) * self.epoch_len + batch_idx
+            mem_start = self.config.trainer.get("mem_start", None)
+            mem_end = self.config.trainer.get("mem_end", None)
+            if mem_start is not None:
+                if current_step == mem_start:
+                    snapshots_dir = Path("./snapshots")
+                    snapshots_dir.mkdir(exist_ok=True)
+                    torch.cuda.synchronize()
+                    torch.cuda.memory._record_memory_history()
+
+            if mem_end is not None:
+                if current_step == mem_end:
+                    torch.cuda.synchronize()
+                    with open(
+                        snapshots_dir / f"rank{self.accelerator.process_index}.pickle",
+                        "wb",
+                    ) as output:
+                        pickle.dump(torch.cuda.memory._snapshot(), output)
+
             try:
                 batch = self.process_batch(
                     batch_idx,
@@ -255,7 +276,7 @@ class BaseTrainer:
                     self.logger.warning("OOM on batch. Skipping batch.")
                     if self.config.trainer.get("debug", False):
                         self.logger.debug(
-                            f"Step: {(epoch - 1) * self.epoch_len + batch_idx} | OOM Batch Indexes: {batch['idxs']}"
+                            f"Step: {current_step} | OOM Batch Indexes: {batch['idxs']}"
                         )
                     torch.cuda.empty_cache()  # free some memory
                     continue

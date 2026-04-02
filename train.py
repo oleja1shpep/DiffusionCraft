@@ -69,6 +69,8 @@ def main(config):
     optimizer = instantiate(config.optimizer, params=trainable_params)
     if config.lr_scheduler.get("steps_per_epoch", None) is not None:
         config.lr_scheduler.steps_per_epoch *= accelerator.num_processes
+    if config.lr_scheduler.get("total_iters", None) is not None:
+        config.lr_scheduler.total_iters *= accelerator.num_processes
     lr_scheduler = instantiate(config.lr_scheduler, optimizer=optimizer)
 
     # epoch_len = number of iterations for iteration-based training

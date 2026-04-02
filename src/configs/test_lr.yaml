@@ -13,7 +13,7 @@ optimizer:
 lr_scheduler:
   _target_: torch.optim.lr_scheduler.LinearLR
   start_factor: 0.001
-  total_iters: 1000
+  total_iters: ${divide:1000,${trainer.accumulation_steps}}
 loss_function:
   _target_: src.loss.VAELoss
   kl_weight: 0.000001

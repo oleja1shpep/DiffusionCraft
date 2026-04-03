@@ -82,9 +82,10 @@ class Trainer(BaseTrainer):
 
                 loss = batch["loss"].detach().item()
                 if loss > 5 and current_step > 5000:
-                    self.logger.debug(
-                        f"Step: {current_step} | HIGH LOSS: {loss} | Batch Indexes: {batch['idxs']}"
-                    )
+                    if self.config.trainer.get("debug", False):
+                        self.logger.debug(
+                            f"Step: {current_step} | HIGH LOSS: {loss} | Batch Indexes: {batch['idxs']}"
+                        )
 
                 self.accelerator.backward(batch["loss"])  # division on accum steps
                 self._clip_grad_norm()
@@ -94,9 +95,10 @@ class Trainer(BaseTrainer):
                 grad_norm = self._get_grad_norm()
 
                 if grad_norm > 4 and current_step > 5000:
-                    self.logger.debug(
-                        f"Step: {current_step} | HIGH GRAD NORM: {grad_norm} | Batch Indexes: {batch['idxs']}"
-                    )
+                    if self.config.trainer.get("debug", False):
+                        self.logger.debug(
+                            f"Step: {current_step} | HIGH GRAD NORM: {grad_norm} | Batch Indexes: {batch['idxs']}"
+                        )
                 self.train_metrics.update("grad_norm", grad_norm)
                 self.optimizer.zero_grad()
         else:
@@ -113,7 +115,13 @@ class Trainer(BaseTrainer):
             metrics.update(loss_name, batch[loss_name].item())
 
         for met in metric_funcs:
-            metrics.update(met.name, met(**batch))
+            value = met(**batch)
+            metrics.update(met.name, value)
+            if met.name == "MaxMemoryAllocated":
+                if value > 55:
+                    self.logger.debug(
+                        f"Step: {current_step} | HIGH MEMORY CONSUMPTION: {round(value, 2)}Gb | Batch Indexes: {batch['idxs']}"
+                    )
 
         return batch
 

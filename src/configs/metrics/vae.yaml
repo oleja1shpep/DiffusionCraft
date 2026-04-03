@@ -9,6 +9,8 @@ train:
   - _target_: src.metrics.AttributeAccuracy
     name: "RawAttributeAccuracy"
     block_equality: False
+  - _target_: src.metrics.MaxMemoryAllocated
+    name: MaxMemoryAllocated
 inference:
   - _target_: src.metrics.BlockTypeAccuracy
     name: "BlockTypeAccuracy"

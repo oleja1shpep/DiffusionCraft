@@ -3,6 +3,7 @@ from io import BytesIO
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
 from matplotlib.axes._axes import Axes
 from matplotlib.figure import Figure
 from PIL import Image
@@ -139,3 +140,12 @@ def render_block_grid(
 
     # Step 3: Load the buffer into a PIL Image
     return Image.open(buffer)
+
+
+def make_class_weights(values: torch.Tensor, power=0.3, eps=1e-5) -> torch.Tensor:
+    values = values.float()
+    max_count = values.max()
+
+    weights = (max_count / (values + eps)) ** power
+    weights = weights / weights.max() * 9.9  # редчайшие классы -> 10
+    return weights + 0.1

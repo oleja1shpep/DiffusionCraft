@@ -147,7 +147,11 @@ class Trainer(BaseTrainer):
             self.log_structure_render(**batch)
 
     def log_structure_render(
-        self, block_type_grid: torch.Tensor, pred_block_type_grid: torch.Tensor, **batch
+        self,
+        block_type_grid: torch.Tensor,
+        pred_block_type_grid: torch.Tensor,
+        name="",
+        **batch,
     ):
         block_type_grid = block_type_grid[0].detach().cpu().numpy()
         pred_block_type_grid = pred_block_type_grid[0].detach().cpu().numpy()
@@ -158,9 +162,11 @@ class Trainer(BaseTrainer):
         pred_render = render_block_grid(
             pred_block_type_grid, self.block2color, self.idx2block
         )
-
-        self.writer.add_image("gt_render", gt_render)
-        self.writer.add_image("pred_render", pred_render)
-
+        if name:
+            self.writer.add_image(f"{name}_gt_render", gt_render)
+            self.writer.add_image(f"{name}_pred_render", pred_render)
+        else:
+            self.writer.add_image("gt_render", gt_render)
+            self.writer.add_image("pred_render", pred_render)
         gt_render.close()
         pred_render.close()

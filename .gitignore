@@ -113,7 +113,6 @@ trace.json
 trace_val.json
 scripts/
 snapshots*
-*statistics.json
 
 # editor, os cache directory
 .vscode/

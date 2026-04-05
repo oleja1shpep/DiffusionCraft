@@ -47,7 +47,7 @@ class BlockTypeLoss(nn.Module):
         block2idx = read_json(ROOT_PATH / block_data_path / "block2idx.json")
         statistics = read_json(ROOT_PATH / block_data_path / "statistics.json")
 
-        weight = torch.zeros_like(len(block2idx))
+        weight = torch.zeros(len(block2idx))
         for k, v in statistics.items():
             weight[block2idx[k]] = v
         mask = weight > 0

@@ -4,3 +4,6 @@ train:
 val:
   _target_: src.datasets.VAEDataset
   name: "val"
+val_viz:
+  _target_: src.datasets.VAEDataset
+  name: "val_viz"

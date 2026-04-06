@@ -339,6 +339,7 @@ class BaseTrainer:
                 with_stack=True,
             )
             prof.start()
+        batches = []
         with torch.no_grad():
             for batch_idx, batch in tqdm(
                 enumerate(dataloader),
@@ -353,12 +354,20 @@ class BaseTrainer:
                 )
                 if self.config.trainer.profile_val:
                     prof.step()
-            if self.accelerator.is_main_process:
+                if part != "val_viz":
+                    batches = []  # log only the last batch during inference
+                batches.append((batch_idx, batch))
+
+            if (
+                part == "val_viz"
+            ) or self.accelerator.is_main_process:  # if part is val_viz want to log from all processes
                 self.writer.set_step(epoch * self.epoch_len, part)
-                self._log_batch(
-                    batch_idx, batch, part
-                )  # log only the last batch during inference
-            self._log_scalars(self.evaluation_metrics)
+                for batch_idx, batch in batches:
+                    self._log_batch(
+                        batch_idx, batch, part
+                    )  # log only the last batch during inference
+            if part != "val_viz":
+                self._log_scalars(self.evaluation_metrics)
         if self.config.trainer.profile_val:
             prof.stop()
             if self.accelerator.is_main_process:

@@ -61,7 +61,7 @@ class VAEDataset(BaseDataset):
                 such as label and object path.
         """
         index = []
-        data_path = ROOT_PATH / "data" / "dataset" / name
+        data_path: Path = ROOT_PATH / "data" / "dataset" / name
         data_path.mkdir(exist_ok=True, parents=True)
 
         # In this example, we create a synthesized dataset. However, in real
@@ -71,6 +71,9 @@ class VAEDataset(BaseDataset):
             os.listdir(data_path), desc=f"Creating Vae Dataset: {name}"
         ):
             structire_path = data_path / structure
+
+            if not (structire_path.is_dir()):
+                continue
 
             if ("attributes_data.pt" not in os.listdir(structire_path)) or (
                 "block_type.pt" not in os.listdir(structire_path)

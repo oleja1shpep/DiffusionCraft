@@ -142,31 +142,38 @@ class Trainer(BaseTrainer):
 
         # logging scheme might be different for different partitions
         if mode == "train":  # the method is called only every self.log_step steps
-            self.log_structure_render(**batch)
+            self.log_structure_render(**batch, part=mode)
         else:
-            self.log_structure_render(**batch)
+            self.log_structure_render(**batch, part=mode)
 
     def log_structure_render(
         self,
         block_type_grid: torch.Tensor,
         pred_block_type_grid: torch.Tensor,
-        name="",
+        idxs,
+        part,
         **batch,
     ):
-        block_type_grid = block_type_grid[0].detach().cpu().numpy()
-        pred_block_type_grid = pred_block_type_grid[0].detach().cpu().numpy()
+        batch_size = block_type_grid.size(0) if part == "val_viz" else 1
 
-        gt_render: Image.Image = render_block_grid(
-            block_type_grid, self.block2color, self.idx2block
-        )
-        pred_render = render_block_grid(
-            pred_block_type_grid, self.block2color, self.idx2block
-        )
-        if name:
-            self.writer.add_image(f"{name}_gt_render", gt_render)
-            self.writer.add_image(f"{name}_pred_render", pred_render)
-        else:
-            self.writer.add_image("gt_render", gt_render)
-            self.writer.add_image("pred_render", pred_render)
-        gt_render.close()
-        pred_render.close()
+        for b in range(batch_size):
+            gt_render: Image.Image = render_block_grid(
+                block_type_grid[b].detach().cpu().numpy(),
+                self.block2color,
+                self.idx2block,
+            )
+            pred_render = render_block_grid(
+                pred_block_type_grid[b].detach().cpu().numpy(),
+                self.block2color,
+                self.idx2block,
+            )
+            if part == "val_viz":
+                idx = idxs[b]
+                self.writer.add_image(f"{idx}_gt_render", gt_render)
+                self.writer.add_image(f"{idx}_pred_render", pred_render)
+            else:
+                self.writer.add_image("gt_render", gt_render)
+                self.writer.add_image("pred_render", pred_render)
+
+            gt_render.close()
+            pred_render.close()

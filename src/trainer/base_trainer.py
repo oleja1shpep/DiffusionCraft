@@ -83,7 +83,8 @@ class BaseTrainer:
             self.model, self.optimizer, self.criterion
         )
         for k in dataloaders:
-            dataloaders[k] = self.accelerator.prepare(dataloaders[k])
+            if k != "val_viz":
+                dataloaders[k] = self.accelerator.prepare(dataloaders[k])
         if self.lr_scheduler is not None:
             self.lr_scheduler = self.accelerator.prepare(self.lr_scheduler)
 
@@ -312,8 +313,17 @@ class BaseTrainer:
 
         # Run val/test
         for part, dataloader in self.evaluation_dataloaders.items():
-            val_logs = self._evaluation_epoch(epoch, part, dataloader)
-            logs.update(**{f"{part}_{name}": value for name, value in val_logs.items()})
+            if part != "val_viz":
+                val_logs = self._evaluation_epoch(epoch, part, dataloader)
+                logs.update(
+                    **{f"{part}_{name}": value for name, value in val_logs.items()}
+                )
+            else:
+                if self.accelerator.is_main_process:
+                    val_logs = self._evaluation_epoch(epoch, part, dataloader)
+                    logs.update(
+                        **{f"{part}_{name}": value for name, value in val_logs.items()}
+                    )
 
         return logs
 
@@ -346,6 +356,8 @@ class BaseTrainer:
                 desc=part,
                 total=len(dataloader),
             ):
+                if part == "val_viz":
+                    batch = self.move_batch_to_device(batch)
                 batch = self.process_batch(
                     batch_idx,
                     epoch,

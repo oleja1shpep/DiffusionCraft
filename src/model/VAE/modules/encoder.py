@@ -12,7 +12,7 @@ from src.utils.model_utils import get_head_key
 
 
 class AttributeEncoder(nn.Module):
-    def __init__(self, emb_dim=256, block_data_path="src/block_data", device="cuda"):
+    def __init__(self, emb_dim=256, block_data_path="src/block_data"):
         """
         The class for block attribute encoder
 
@@ -36,7 +36,7 @@ class AttributeEncoder(nn.Module):
 
         for key in self.attr_pair2idxs:
             self.attr_pair2idxs[key] = torch.tensor(
-                self.attr_pair2idxs[key], device=device, dtype=torch.long
+                self.attr_pair2idxs[key], dtype=torch.long
             )
 
         self.heads = nn.ModuleDict()
@@ -138,7 +138,6 @@ class Encoder(nn.Module):
         z_channels=16,
         num_res_blocks=2,
         block_data_path="src/block_data",
-        device="cuda",
     ):
         """
         The class for DownSampling Block Grid into latents
@@ -149,7 +148,7 @@ class Encoder(nn.Module):
         """
         super().__init__()
         self.block_type_encoder = BlockTypeEncoder(channels, block_data_path)
-        self.attribute_encoder = AttributeEncoder(channels, block_data_path, device)
+        self.attribute_encoder = AttributeEncoder(channels, block_data_path)
 
         self.num_layers = num_layers
         self.z_channels = z_channels

@@ -57,6 +57,7 @@ def main(config):
 
     # build model architecture, then print to console
     model = instantiate(config.model).to(device)
+    model.post_init(device)
     if accelerator.is_main_process:
         logger.info(model)
 

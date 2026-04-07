@@ -12,7 +12,9 @@ from src.utils.model_utils import get_head_key
 
 
 class AttributeDecoder(nn.Module):
-    def __init__(self, emb_dim=256, block_data_path="src/block_data", device="cuda"):
+    def __init__(
+        self, emb_dim=256, block_data_path="src/block_data", use_pred_masks=False
+    ):
         """
         The class for block attribute encoder
 
@@ -22,6 +24,7 @@ class AttributeDecoder(nn.Module):
         super().__init__()
 
         self.D = emb_dim
+        self.use_pred_masks = use_pred_masks
 
         self.non_default_attribute_pairs = read_json(
             ROOT_PATH / block_data_path / "non_default_attribute_pairs.json"
@@ -42,7 +45,7 @@ class AttributeDecoder(nn.Module):
 
         for key in self.attr_pair2idxs:
             self.attr_pair2idxs[key] = torch.tensor(
-                self.attr_pair2idxs[key], device=device, dtype=torch.long
+                self.attr_pair2idxs[key], dtype=torch.long
             )
 
         self.heads = nn.ModuleDict()
@@ -74,7 +77,7 @@ class AttributeDecoder(nn.Module):
         attributes_logits = dict()  # attr-pair : values
 
         # new masks
-        # pred_attribures_masks = dict()
+        pred_attributes_masks = dict()
 
         for attr, values in self.non_default_attribute_pairs:
             head_key = get_head_key(attr, values)
@@ -82,12 +85,17 @@ class AttributeDecoder(nn.Module):
             # use GT masks for loss to work. For metrics will use gt-pred block equality mask
             mask = attributes_masks[head_key]
 
-            # pred_attribures_masks[head_key] = torch.isin(pred_block_type_grid, self.attr_pair2idxs[head_key])
+            # if use Pred masks, then no metrics can be calculated. But the reconstruction is accurate
+            if self.use_pred_masks:
+                pred_attributes_masks[head_key] = torch.isin(
+                    pred_block_type_grid, self.attr_pair2idxs[head_key]
+                )
+                mask = pred_attributes_masks[head_key]
 
             attr_logits = self.heads[head_key](features[mask])  # (N, len(values))
             attributes_logits[head_key] = attr_logits
 
-        return attributes_logits
+        return attributes_logits, pred_attributes_masks
 
 
 class BlockTypeDecoder(nn.Module):
@@ -143,14 +151,18 @@ class Decoder(nn.Module):
         z_channels=16,
         num_res_blocks=2,
         block_data_path="src/block_data",
-        device="cuda",
+        use_pred_masks=False,
     ):
         """
         The class for DownSampling Block Grid into latents
 
         Args:
-            emb_dim (int): the size of features dimension.
+            channels (Int) : the dim of Embeddings.
+            z_channels (Int) : the number of channels of latents.
+            num_layers (Int) : layers of downsampling.
+            num_res_blocks (Int) : number of ResnetBlocks in downsampling.
             block_data_path (str): path to the directory with block jsons.
+            use_pred_masks (bool) : whether to calc masks on pred_block_grid
         """
         super().__init__()
         self.num_layers = num_layers
@@ -204,7 +216,9 @@ class Decoder(nn.Module):
         self.norm_out = Normalize(channels)
 
         self.block_type_decoder = BlockTypeDecoder(channels, block_data_path)
-        self.attribute_decoder = AttributeDecoder(channels, block_data_path, device)
+        self.attribute_decoder = AttributeDecoder(
+            channels, block_data_path, use_pred_masks=use_pred_masks
+        )
 
         self.upsample_block = nn.Identity()
 
@@ -240,5 +254,13 @@ class Decoder(nn.Module):
 
         block_type_logits = self.block_type_decoder(h)  # (B, W, H, L, num_blocks)
         pred_block_type_grid = block_type_logits.argmax(-1)
-        attributes_logits = self.attribute_decoder(h, pred_block_type_grid, **batch)
-        return block_type_logits, pred_block_type_grid, attributes_logits, h
+        attributes_logits, pred_attributes_masks = self.attribute_decoder(
+            h, pred_block_type_grid, **batch
+        )
+        return (
+            block_type_logits,
+            pred_block_type_grid,
+            attributes_logits,
+            pred_attributes_masks,
+            h,
+        )

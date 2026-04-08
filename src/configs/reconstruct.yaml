@@ -1,0 +1,13 @@
+defaults:
+  - model: vae
+  - _self_
+input_dir: "inputs"
+output_dir: "reconstructions"
+block_data_dir: "src/block_data/"
+device_tensors: ["block_type_grid", "attributes_masks", "attributes_values"] # which tensors should be on device (ex. GPU)
+device: auto # device name or "auto"
+seed: 1
+model_path: "saved/model_best.pth" # path to the pretrained model
+model:
+  use_pred_masks: True
+  channels: 32

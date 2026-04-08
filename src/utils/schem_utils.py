@@ -455,11 +455,11 @@ def create_schem(
         block_data_dir / "block_attributes_defaults.json"
     )
 
-    width, length, height = block_grid_tensor.shape
+    width, height, length = block_grid_tensor.shape
     schematic = mcschematic.MCSchematic()
-    for x in width:
-        for y in height:
-            for z in length:
+    for x in range(width):
+        for y in range(height):
+            for z in range(length):
                 block_idx = block_grid_tensor[x, y, z]
                 block_name = idx2block[block_idx]
 
@@ -494,4 +494,6 @@ def create_schem(
                 block = construct_block(block_name, attr_dict)
                 schematic.setBlock((x, y, z), block)
     output_path: Path
-    schematic.save(output_path.parent, output_path.name, mcschematic.Version.JE_1_20_1)
+    schematic.save(
+        str(output_path.parent), str(output_path.stem), mcschematic.Version.JE_1_20_1
+    )

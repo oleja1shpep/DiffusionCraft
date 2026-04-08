@@ -17,6 +17,16 @@ AIR_BLOCK_IDX = 0
 matplotlib.use("Agg")
 
 
+def load_checkpoint(model: torch.nn.Module, path: str, device):
+    checkpoint = torch.load(path, device, weights_only=False)
+
+    if checkpoint.get("state_dict") is not None:
+        model.load_state_dict(checkpoint["state_dict"])
+    else:
+        model.load_state_dict(checkpoint)
+    return model
+
+
 def get_head_key(attr: str, values: list[str]):
     return f"{attr}_{sorted(values)}"
 

@@ -113,6 +113,8 @@ trace.json
 trace_val.json
 scripts/
 snapshots*
+inputs
+reconstructions
 
 # editor, os cache directory
 .vscode/

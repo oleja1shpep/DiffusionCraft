@@ -21,9 +21,17 @@ def load_checkpoint(model: torch.nn.Module, path: str, device):
     checkpoint = torch.load(path, device, weights_only=False)
 
     if checkpoint.get("state_dict") is not None:
-        model.load_state_dict(checkpoint["state_dict"])
-    else:
-        model.load_state_dict(checkpoint)
+        checkpoint = checkpoint["state_dict"]
+
+    model_state_dict = model.state_dict()
+
+    for key, value in checkpoint.items():
+        key: str
+        if key.startswith("module."):
+            key = key[key.index(".") + 1 :]
+        model_state_dict[key] = value
+
+    model.load_state_dict(model_state_dict)
     return model
 
 

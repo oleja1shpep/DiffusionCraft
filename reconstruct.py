@@ -1,3 +1,4 @@
+import logging
 import os
 import warnings
 
@@ -50,9 +51,15 @@ def main(config):
     else:
         device = config.device
 
+    logger = logging.getLogger("train")
+    logger.setLevel(logging.DEBUG)
+
+    logger.info("Initialising the model")
     # build model architecture, then print to console
     model = instantiate(config.model).to(device)
     model.post_init(device)
+
+    logger.info("Loading model checkpoint")
     if config.get("model_path", None) is not None:
         model = load_checkpoint(model, config.model_path, device)
 

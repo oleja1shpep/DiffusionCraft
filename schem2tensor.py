@@ -24,7 +24,7 @@ from pathlib import Path
 
 import nbtlib
 import torch
-import tqdm
+from tqdm import tqdm
 
 from src.utils.schem_utils import (
     AIR,

@@ -264,32 +264,39 @@ def filter_attribute_dict(
         A filtered attr dict without defaults and with indexes
     """
     final_attr_dict = {}
-    for attr in attr_dict:
-        if attr not in attributes_defaults:
-            if block in block_attributes_defaults:
-                if attr not in block_attributes_defaults[block]:
-                    final_attr_dict[attr] = attr_dict[attr]
-            else:
-                final_attr_dict[attr] = attr_dict[attr]
-
     block_attrs = filtered_blocks_dict[block]
+
+    # attrubutes we consider
     for attr in block_attrs:
-        if attr not in final_attr_dict:
+        # leave only attributes we are predicting
+        if attr in attributes_defaults:
+            continue
+        if block in block_attributes_defaults:
+            if attr in block_attributes_defaults[block]:
+                continue
+
+        # if attribute is not present in this block make it 0
+        if attr not in attr_dict:
             final_attr_dict[attr] = 0
             continue
-        value = final_attr_dict[attr]
+
+        # if attr exists we need to know its value exists
+        value = attr_dict[attr]
+        # if it is wall but value does not exist then replace it with ours
         if block.endswith("_wall") and value not in block_attrs[attr]:
             if value == "true":
-                final_attr_dict[attr] = sorted(block_attrs[attr]).index("low")
+                value = "low"
             elif value == "false":
-                final_attr_dict[attr] = sorted(block_attrs[attr]).index("none")
+                value = "none"
             else:
-                print("WTF ERROR")
+                print("WTF ERROR???")
                 import pdb
 
                 pdb.set_trace()
-            continue
 
+        # if value does not exist for some reason, make it 0
+        if value not in block_attrs[attr]:
+            value = sorted(block_attrs[attr])[0]
         final_attr_dict[attr] = sorted(block_attrs[attr]).index(value)
 
     return final_attr_dict

@@ -11,7 +11,7 @@ from src.datasets.collate import collate_fn
 from src.utils.init_utils import set_random_seed
 from src.utils.io_utils import ROOT_PATH, read_json
 from src.utils.model_utils import get_head_key, load_checkpoint
-from src.utils.schem_utils import create_schem, parse_schem
+from src.utils.schem_utils import create_schem, gather_attributes_data, parse_schem
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -110,17 +110,9 @@ def main(config):
             with torch.no_grad():
                 outputs = model(**batch)
 
-            pred_attributes_data = dict()
-
-            for attr, values in non_default_attribute_pairs:
-                head_key = get_head_key(attr, values)
-                pred_attributes_data[head_key] = {}
-                pred_attributes_data[head_key]["mask"] = (
-                    outputs["pred_attribures_masks"][head_key][0].detach().cpu()
-                )
-                pred_attributes_data[head_key]["values"] = (
-                    outputs["attributes_logits"][head_key].detach().argmax(-1).cpu()
-                )
+            pred_attributes_data = gather_attributes_data(
+                outputs["pred_attribures_masks"], outputs["attributes_logits"]
+            )
 
             create_schem(
                 outputs["pred_block_type_grid"][0].detach().cpu(),

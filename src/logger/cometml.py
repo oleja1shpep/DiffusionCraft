@@ -212,6 +212,9 @@ class CometMLWriter:
             text=text, step=self.step, metadata={"name": self._object_name(text_name)}
         )
 
+    def add_file(self, path, name):
+        self.exp.log_asset(path, name, step=self.step)
+
     def add_histogram(self, hist_name, values_for_hist, bins=None):
         """
         Log histogram to the experiment tracker.

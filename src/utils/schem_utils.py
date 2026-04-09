@@ -241,6 +241,22 @@ def construct_block(block: str, attr_dict: dict[str, str]) -> str:
     return result
 
 
+def gather_attributes_data(pred_attribures_masks, attributes_logits):
+    """
+    works only for batch_size = 1 !!!
+    """
+    pred_attributes_data = dict()
+    for head_key in pred_attribures_masks:
+        pred_attributes_data[head_key] = {}
+        pred_attributes_data[head_key]["mask"] = (
+            pred_attribures_masks[head_key][0].detach().cpu()
+        )
+        pred_attributes_data[head_key]["values"] = (
+            attributes_logits[head_key].detach().argmax(-1).cpu()
+        )
+    return pred_attributes_data
+
+
 def filter_attribute_dict(
     block: str,
     attr_dict: dict[str, str],

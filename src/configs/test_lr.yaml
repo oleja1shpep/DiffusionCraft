@@ -19,6 +19,7 @@ loss_function:
   kl_weight: 0.000001
   feature_loss_type: null # L1 or L2
   feature_loss_weight: 1
+  block_weights: True
 trainer:
   mem_start: 3284
   mem_end: 3316

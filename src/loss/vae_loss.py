@@ -3,7 +3,7 @@ from torch import nn
 
 from src.model.VAE.modules import DiagonalGaussianDistribution
 from src.utils.io_utils import ROOT_PATH, read_json
-from src.utils.model_utils import make_class_weights
+from src.utils.model_utils import AIR_BLOCK_IDX, WATER, make_class_weights
 
 
 class AttributeLoss(nn.Module):
@@ -42,16 +42,20 @@ class AttributeLoss(nn.Module):
 
 
 class BlockTypeLoss(nn.Module):
-    def __init__(self, block_data_path="./src/block_data"):
+    def __init__(self, block_weights=True, block_data_path="./src/block_data"):
         super().__init__()
         block2idx = read_json(ROOT_PATH / block_data_path / "block2idx.json")
         statistics = read_json(ROOT_PATH / block_data_path / "statistics.json")
 
-        weight = torch.zeros(len(block2idx))
-        for k, v in statistics.items():
-            weight[block2idx[k]] = v
-        mask = weight > 0
-        weight[mask] = make_class_weights(weight[mask])
+        weight = torch.ones(len(block2idx))
+        if block_weights:
+            for k, v in statistics.items():
+                weight[block2idx[k]] = v
+            mask = weight > 0
+            weight[mask] = make_class_weights(weight[mask])
+        else:
+            weight[AIR_BLOCK_IDX] = 1 / 10
+            weight[block2idx[WATER]] = 1 / 3
 
         self.loss = nn.CrossEntropyLoss(weight)
 
@@ -116,9 +120,15 @@ class VAELoss(nn.Module):
     Example of a loss function to use.
     """
 
-    def __init__(self, kl_weight=1.0, feature_loss_type=None, feature_loss_weight=1.0):
+    def __init__(
+        self,
+        kl_weight=1.0,
+        feature_loss_type=None,
+        feature_loss_weight=1.0,
+        block_weights=True,
+    ):
         super().__init__()
-        self.block_type_loss = BlockTypeLoss()
+        self.block_type_loss = BlockTypeLoss(block_weights)
         self.attribute_loss = AttributeLoss()
         self.kl_loss = KLLoss(kl_weight)
         self.feature_loss = FeatureLoss(feature_loss_type, feature_loss_weight)

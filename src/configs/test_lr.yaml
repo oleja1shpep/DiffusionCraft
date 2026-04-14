@@ -2,7 +2,7 @@ defaults:
   - model: vae
   - writer: cometml
   - metrics: vae
-  - datasets: vae #_onebatchtest
+  - datasets: vae
   - dataloader: vae
   - transforms: vae
   - _self_
@@ -21,9 +21,9 @@ loss_function:
   feature_loss_weight: 1
   block_weights: True
 trainer:
-  mem_start: 3284
-  mem_end: 3316
-  log_step: 100
+  mem_start: null
+  mem_end: null
+  log_step: 1000
   check_nan: False
   accumulation_steps: 8
   amp: 'no'
@@ -31,8 +31,8 @@ trainer:
   profile_val: False
   memory_snapshot: False
   debug: False
-  n_epochs: 300
-  epoch_len: 1000
+  n_epochs: 30
+  epoch_len: 10000
   device_tensors: ["block_type_grid", "attributes_masks", "attributes_values"] # which tensors should be on device (ex. GPU)
   resume_from: null # null or path to the checkpoint dir with *.pth and config.yaml
   device: auto # device name or "auto"

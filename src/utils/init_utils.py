@@ -137,9 +137,8 @@ def saving_init(save_dir, config, accelerator=None):
     OmegaConf.set_struct(config, False)
     config.writer.run_id = run_id
     OmegaConf.set_struct(config, True)
-
-    OmegaConf.save(config, save_dir / "config.yaml")
     if accelerator is None or accelerator.is_main_process:
+        OmegaConf.save(config, save_dir / "config.yaml")
         log_git_commit_and_patch(save_dir)
 
 

@@ -235,7 +235,7 @@ def construct_block(block: str, attr_dict: dict[str, str]) -> str:
     if not (attr_dict):
         return block
     result += "["
-    for attr, value in attr_dict.items():
+    for attr, value in sorted(list(attr_dict.items()), key=lambda x: x[0]):
         result += f"{attr}={value},"
     result = result[:-1] + "]"  # delete last comma
     return result

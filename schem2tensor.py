@@ -125,6 +125,8 @@ def parse_schematics(
                 print(f"Error: {e}\nFilename: {schm}")
                 continue
             try:
+                if "Schematic" in schem.keys():  # rarely this key appears
+                    schem = schem["Schematic"]
                 length, width, height = schem["Length"], schem["Width"], schem["Height"]
             except Exception as e:
                 print(f"Error: {e}\nFilename: {schm}")

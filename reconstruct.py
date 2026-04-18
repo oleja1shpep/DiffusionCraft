@@ -75,6 +75,7 @@ def main(config):
         block_data_dir / "non_default_attribute_pairs.json"
     )
 
+    logger.info(f"Start reconstruction of {config.input_dir}")
     for file in tqdm(os.listdir(input_dir), desc="Reconsctructing..."):
         shem_path = input_dir / file
         if shem_path.suffix == ".schem":
@@ -120,6 +121,7 @@ def main(config):
                 output_path=output_dir / file,
                 block_data_dir=block_data_dir,
             )
+    logger.info(f"Finished reconstruction of {config.input_dir}")
 
 
 if __name__ == "__main__":

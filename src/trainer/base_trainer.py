@@ -688,9 +688,16 @@ class BaseTrainer:
             self.logger.info(f"Loading model weights from: {pretrained_path} ...")
         else:
             print(f"Loading model weights from: {pretrained_path} ...")
-        checkpoint = torch.load(pretrained_path, self.device)
-
+        checkpoint = torch.load(pretrained_path, self.device, weights_only=False)
         if checkpoint.get("state_dict") is not None:
-            self.model.load_state_dict(checkpoint["state_dict"])
-        else:
-            self.model.load_state_dict(checkpoint)
+            checkpoint = checkpoint["state_dict"]
+
+        model_state_dict = self.model.state_dict()
+
+        for key, value in checkpoint.items():
+            key: str
+            if key.startswith("module.") and key not in model_state_dict:
+                key = key[key.index(".") + 1 :]
+            model_state_dict[key] = value
+
+        self.model.load_state_dict(model_state_dict)

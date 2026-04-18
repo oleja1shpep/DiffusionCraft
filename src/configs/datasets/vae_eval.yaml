@@ -1,0 +1,3 @@
+val:
+  _target_: src.datasets.VAEDataset
+  name: "val"

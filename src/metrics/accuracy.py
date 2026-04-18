@@ -40,6 +40,61 @@ class BlockTypeAccuracy(BaseMetric):
         )
 
 
+class MacroAccuracy(BaseMetric):
+    def __init__(self, *args, **kwargs):
+        """
+        Macro Accuracy among blocks
+
+        Args:
+            metric (Callable): function to calculate metrics.
+            device (str): device for the metric calculation (and tensors).
+        """
+        super().__init__(*args, **kwargs)
+
+    def __call__(
+        self,
+        block_type_grid: torch.Tensor,
+        pred_block_type_grid: torch.Tensor,
+        block_type_logits: torch.Tensor,
+        **batch
+    ):
+        """
+        Metric calculation logic.
+
+        Args:
+            pred_block_type_grid (Tensor): model output predictions.
+            block_type_grid (Tensor): ground-truth block types.
+        Returns:
+            metric (float): calculated metric.
+        """
+        B = block_type_logits.shape[0]
+        num_classes = block_type_logits.shape[-1]
+        allowed_classes = list(range(num_classes))
+        allowed_classes.remove(AIR_BLOCK_IDX)
+
+        results = []
+        for b in range(B):
+            per_class_acc = 0
+            present_classes = 0
+
+            target = block_type_grid[b]
+            pred = pred_block_type_grid[b]
+
+            for c in allowed_classes:
+                class_mask = target == c
+                class_count = class_mask.sum().item()
+                if class_count != 0:
+                    present_classes += 1
+                    correct = (pred[class_mask] == c).sum().item()
+                    per_class_acc += correct / class_count
+            if present_classes:
+                results.append(per_class_acc / present_classes)
+        if results:
+            return torch.tensor(results).mean().item()
+        else:
+            return 0
+
+
 class AttributeAccuracy(BaseMetric):
     def __init__(self, block_equality=True, *args, **kwargs):
         """

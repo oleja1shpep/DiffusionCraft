@@ -20,10 +20,10 @@ class Inferencer(BaseTrainer):
         config,
         device,
         dataloaders,
-        save_path,
         metrics=None,
         batch_transforms=None,
         skip_model_load=False,
+        logger=None,
     ):
         """
         Initialize the Inferencer.
@@ -56,22 +56,27 @@ class Inferencer(BaseTrainer):
 
         self.device = device
 
+        self.logger = logger
+
         self.model = model
         self.batch_transforms = batch_transforms
 
         # define dataloaders
         self.evaluation_dataloaders = {k: v for k, v in dataloaders.items()}
 
-        # path definition
-
-        self.save_path = save_path
+        self.save_path = None
 
         # define metrics
         self.metrics = metrics
+        self.special_names = ["AttributeAccuracy", "RawAttributeAccuracy"]
+        self.suffixes = ["Min", "Max", "Mean", "Median"]
+
         if self.metrics is not None:
             self.evaluation_metrics = MetricTracker(
                 *[m.name for m in self.metrics["inference"]],
                 writer=None,
+                special_names=self.special_names,
+                suffixes=self.suffixes,
             )
         else:
             self.evaluation_metrics = None
@@ -94,7 +99,7 @@ class Inferencer(BaseTrainer):
             part_logs[part] = logs
         return part_logs
 
-    def process_batch(self, batch_idx, batch, metrics, part):
+    def process_batch(self, batch_idx, batch, metrics: MetricTracker, part):
         """
         Run batch through the model, compute metrics, and
         save predictions to disk.
@@ -125,30 +130,6 @@ class Inferencer(BaseTrainer):
         if metrics is not None:
             for met in self.metrics["inference"]:
                 metrics.update(met.name, met(**batch))
-
-        # Some saving logic. This is an example
-        # Use if you need to save predictions on disk
-
-        batch_size = batch["logits"].shape[0]
-        current_id = batch_idx * batch_size
-
-        for i in range(batch_size):
-            # clone because of
-            # https://github.com/pytorch/pytorch/issues/1995
-            logits = batch["logits"][i].clone()
-            label = batch["labels"][i].clone()
-            pred_label = logits.argmax(dim=-1)
-
-            output_id = current_id + i
-
-            output = {
-                "pred_label": pred_label,
-                "label": label,
-            }
-
-            if self.save_path is not None:
-                # you can use safetensors or other lib here
-                torch.save(output, self.save_path / part / f"output_{output_id}.pth")
 
         return batch
 

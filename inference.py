@@ -1,3 +1,4 @@
+import logging
 import warnings
 
 import hydra
@@ -22,6 +23,9 @@ def main(config):
     Args:
         config (DictConfig): hydra experiment config.
     """
+    logger = logging.getLogger("train")
+    logger.setLevel(logging.DEBUG)
+
     set_random_seed(config.inferencer.seed)
 
     if config.inferencer.device == "auto":
@@ -34,15 +38,11 @@ def main(config):
     dataloaders, batch_transforms = get_dataloaders(config, device)
 
     # build model architecture, then print to console
+    logger.info("Initialising the model")
     model = instantiate(config.model).to(device)
-    print(model)
 
     # get metrics
     metrics = instantiate(config.metrics)
-
-    # save_path for model predictions
-    save_path = ROOT_PATH / "data" / "saved" / config.inferencer.save_path
-    save_path.mkdir(exist_ok=True, parents=True)
 
     inferencer = Inferencer(
         model=model,
@@ -50,9 +50,9 @@ def main(config):
         device=device,
         dataloaders=dataloaders,
         batch_transforms=batch_transforms,
-        save_path=save_path,
         metrics=metrics,
         skip_model_load=False,
+        logger=logger,
     )
 
     logs = inferencer.run_inference()

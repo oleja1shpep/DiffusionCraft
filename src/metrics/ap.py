@@ -7,7 +7,7 @@ from src.utils.model_utils import AIR_BLOCK_IDX
 
 
 class AP(BaseMetric):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, air_only=True, *args, **kwargs):
         """
         Example of a nested metric class. Applies metric function
         object (for example, from TorchMetrics) on tensors.
@@ -19,6 +19,7 @@ class AP(BaseMetric):
             metric (Callable): function to calculate metrics.
             device (str): device for the metric calculation (and tensors).
         """
+        self.air_only = air_only
         super().__init__(*args, **kwargs)
 
     def __call__(
@@ -33,25 +34,34 @@ class AP(BaseMetric):
         Returns:
             metric (Tensor): calculated metric.
         """
+        num_classes = block_type_logits.shape[-1]
         B = len(block_type_grid)
-        air_target = (
-            (block_type_grid.detach() == AIR_BLOCK_IDX)
-            .to(torch.int32)
-            .reshape(B, -1)
-            .cpu()
-            .numpy()
-            .astype(np.int32)
-        )
-        air_logits = (
-            block_type_logits[..., AIR_BLOCK_IDX].reshape(B, -1).detach().cpu().numpy()
-        )
 
-        results = torch.zeros(B)
+        allowed_classes = list(range(num_classes))
+        if self.air_only:
+            allowed_classes = [AIR_BLOCK_IDX]
+        else:
+            allowed_classes.remove(AIR_BLOCK_IDX)
+
+        results = []
         for b in range(B):
-            logits = air_logits[b]
-            y_true = air_target[b]
-            precision, recall, _ = precision_recall_curve(y_true, logits)
+            mAP = 0
+            present_classes = 0
+            for c in allowed_classes:
+                target = (
+                    (block_type_grid[b] == c).flatten().cpu().numpy().astype(np.int32)
+                )
+                logits = (
+                    block_type_logits[b, :, :, :, c].detach().flatten().cpu().numpy()
+                )
+                if target.sum() != 0:
+                    precision, recall, _ = precision_recall_curve(target, logits)
+                    mAP += auc(recall, precision)
+                    present_classes += 1
+            if present_classes:
+                results.append(mAP / present_classes)
 
-            results[b] = auc(recall, precision)
-
-        return results.mean()
+        if results:
+            return torch.tensor(results).mean().item()
+        else:
+            return 0

@@ -2,13 +2,8 @@ device: "auto"
 train:
   - _target_: src.metrics.BlockTypeAccuracy
     name: "BlockTypeAccuracy"
-  - _target_: src.metrics.MacroAccuracy
-    name: "MacroBlockTypeAccuracy"
   - _target_: src.metrics.AP
     name: "AirAP"
-  - _target_: src.metrics.AP
-    name: "mAP"
-    air_only: False
   - _target_: src.metrics.AttributeAccuracy
     name: "AttributeAccuracy"
   - _target_: src.metrics.AttributeAccuracy

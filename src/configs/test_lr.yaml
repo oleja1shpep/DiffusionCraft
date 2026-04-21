@@ -20,6 +20,7 @@ loss_function:
   feature_loss_type: null # L1 or L2
   feature_loss_weight: 1
   block_weights: True
+  weights_scale: 1
 trainer:
   mem_start: null
   mem_end: null

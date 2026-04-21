@@ -160,10 +160,12 @@ def render_block_grid(
     return Image.open(buffer)
 
 
-def make_class_weights(values: torch.Tensor, power=0.3, eps=1e-5) -> torch.Tensor:
+def make_class_weights(
+    values: torch.Tensor, power=0.3, eps=1e-5, scale=1
+) -> torch.Tensor:
     values = values.float()
     max_count = values.max()
 
     weights = (max_count / (values + eps)) ** power
     weights = weights / weights.max() * 9.9  # редчайшие классы -> 10
-    return weights + 0.1
+    return (weights + 0.1) * scale

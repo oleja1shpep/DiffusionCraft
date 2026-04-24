@@ -5,6 +5,7 @@ import secrets
 import shutil
 import string
 import subprocess
+import time
 
 import numpy as np
 import torch
@@ -156,6 +157,8 @@ def setup_saving_and_logging(config, accelerator=None):
     save_dir = ROOT_PATH / config.trainer.save_dir / config.writer.run_name
     saving_init(save_dir, config, accelerator)
 
+    if (accelerator is not None) and not (accelerator.is_main_process):
+        time.sleep(2)
     if config.trainer.get("resume_from") is not None:
         setup_logging(save_dir, append=True)
     else:

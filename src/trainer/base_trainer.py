@@ -207,7 +207,7 @@ class BaseTrainer:
                 logs, not_improved_count
             )
             if self.accelerator.is_main_process:
-                if ((epoch % self.save_period == 0) and epoch > 15) or best:
+                if (epoch % self.save_period == 0) or best:
                     self._save_checkpoint(epoch, save_best=best, only_best=False)
 
             if stop_process:  # early_stop
@@ -608,7 +608,7 @@ class BaseTrainer:
             # model_filename = str(
             #     self.checkpoint_dir / f"model-checkpoint-epoch{epoch}.pth"
             # )
-            if not (only_best and save_best):
+            if (not (only_best and save_best)) and (epoch >= 15):
                 self.logger.info(f"Saving and logging checkpoint: {filename} ...")
                 torch.save(state, filename)
                 # torch.save(self.model.state_dict(), model_filename)

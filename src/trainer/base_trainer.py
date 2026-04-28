@@ -207,8 +207,7 @@ class BaseTrainer:
                 logs, not_improved_count
             )
             if self.accelerator.is_main_process:
-                if (epoch % self.save_period == 0) or best:
-                    self._save_checkpoint(epoch, save_best=best, only_best=False)
+                self._save_checkpoint(epoch, save_best=best)
 
             if stop_process:  # early_stop
                 break
@@ -582,7 +581,7 @@ class BaseTrainer:
             if self.accelerator.is_main_process:
                 self.writer.add_scalar(f"{metric_name}", value.cpu().item())
 
-    def _save_checkpoint(self, epoch, save_best=False, only_best=False):
+    def _save_checkpoint(self, epoch, save_best=False):
         """
         Save the checkpoints.
 
@@ -608,7 +607,9 @@ class BaseTrainer:
             # model_filename = str(
             #     self.checkpoint_dir / f"model-checkpoint-epoch{epoch}.pth"
             # )
-            if (not (only_best and save_best)) and (epoch >= 15):
+
+            # save each <save_period> iterations after 15th epoch
+            if (epoch % self.save_period == 0) and (epoch >= 15):
                 self.logger.info(f"Saving and logging checkpoint: {filename} ...")
                 torch.save(state, filename)
                 # torch.save(self.model.state_dict(), model_filename)
@@ -617,6 +618,7 @@ class BaseTrainer:
                         filename, str(self.checkpoint_dir.parent)
                     )
 
+            # save best each iter
             if save_best:
                 best_path = str(self.checkpoint_dir / "model_best.pth")
                 # best_model_path = str(self.checkpoint_dir / "model_only_best.pth")

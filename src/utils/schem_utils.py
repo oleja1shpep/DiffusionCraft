@@ -332,13 +332,21 @@ def block_to_idx(block: str, block2idx: dict[str, int]) -> int:
     block2idx : dict
         A dict for matching block type and its index
     """
+    not_found = False
 
     if block not in block2idx:
-        if block.startswith(INFESTED):
+        if block == "minecraft:sign":
+            block = "minecraft:oak_sign"
+        elif block == "minecraft:wall_sign":
+            block = "minecraft:oak_wall_sign"
+        elif block == "minecraft:grass_path":
+            block = "minecraft:dirt_path"
+        elif block.startswith(INFESTED):
             block = "minecraft:" + block[len(INFESTED) :]
         else:
             block = AIR
-    return block, block2idx[block]
+            not_found = True
+    return block, block2idx[block], not_found
 
 
 def create_block2idx_mapping(block_data_dir):
@@ -413,7 +421,7 @@ def parse_schem(path: str, block_data_dir="src/block_data"):
             block = palette[block_byte]
 
             block, attr_dict = parse_block(block)  # str, dict
-            block, block_idx = block_to_idx(block, block2idx)  # str, int
+            block, block_idx, _ = block_to_idx(block, block2idx)  # str, int
             if block == AIR:
                 attr_dict = {}
 

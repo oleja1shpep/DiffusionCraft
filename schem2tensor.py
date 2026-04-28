@@ -147,7 +147,7 @@ def parse_schematics(
                 block = palette[block_byte]
 
                 block, attr_dict = parse_block(block)  # str, dict
-                block, block_idx = block_to_idx(block, block2idx)  # str, int
+                block, block_idx, _ = block_to_idx(block, block2idx)  # str, int
                 if block == AIR:
                     attr_dict = {}
 

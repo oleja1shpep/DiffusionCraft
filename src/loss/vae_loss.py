@@ -7,12 +7,14 @@ from src.utils.model_utils import AIR_BLOCK_IDX, WATER, make_class_weights
 
 
 class AttributeLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, attribute_loss_weight):
         super().__init__()
+        self.attribute_loss_weight = attribute_loss_weight
         self.loss = nn.CrossEntropyLoss()
 
     def forward(
         self,
+        block_type_grid: torch.Tensor,
         attributes_values: dict[str, torch.Tensor],
         attributes_logits: dict[str, torch.Tensor],
         **batch,
@@ -26,19 +28,21 @@ class AttributeLoss(nn.Module):
         Returns:
             loss (Tensor): calculated loss function
         """
-        loss_dict = dict()
-        for key in attributes_values:
-            if len(attributes_logits[key]) and len(attributes_values[key]):
-                loss_dict[f"{key}_loss"] = self.loss(
-                    input=attributes_logits[key],
-                    target=attributes_values[key],
-                )
-            else:
-                loss_dict[f"{key}_loss"] = torch.tensor(
-                    0.0, device=attributes_values[key].device
-                )
+        loss = torch.tensor(0.0, device=block_type_grid.device)
 
-        return loss_dict
+        if self.attribute_loss_weight != 0:
+            for key in attributes_values:
+                if len(attributes_logits[key]) and len(attributes_values[key]):
+                    loss = loss + self.loss(
+                        input=attributes_logits[key],
+                        target=attributes_values[key],
+                    )
+                else:
+                    loss = loss + torch.tensor(
+                        0.0, device=attributes_values[key].device
+                    )
+
+        return {"attribute_loss": loss * self.attribute_loss_weight}
 
 
 class BlockTypeLoss(nn.Module):
@@ -87,9 +91,8 @@ class KLLoss(nn.Module):
         self.kl_weight = kl_weight
 
     def forward(self, latents: DiagonalGaussianDistribution, **batch):
-        if self.kl_weight == 0:
-            loss = torch.tensor(0, device=latents.parameters.device)
-        else:
+        loss = torch.tensor(0.0, device=latents.parameters.device)
+        if self.kl_weight != 0:
             loss = latents.kl().mean() * self.kl_weight
         return {"kl_loss": loss}
 
@@ -122,6 +125,7 @@ class VAELoss(nn.Module):
 
     def __init__(
         self,
+        attr_loss_weight=1.0,
         kl_weight=1.0,
         feature_loss_type=None,
         feature_loss_weight=1.0,
@@ -129,7 +133,7 @@ class VAELoss(nn.Module):
     ):
         super().__init__()
         self.block_type_loss = BlockTypeLoss(block_weights)
-        self.attribute_loss = AttributeLoss()
+        self.attribute_loss = AttributeLoss(attr_loss_weight)
         self.kl_loss = KLLoss(kl_weight)
         self.feature_loss = FeatureLoss(feature_loss_type, feature_loss_weight)
 

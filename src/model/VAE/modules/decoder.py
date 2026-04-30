@@ -162,11 +162,13 @@ class Decoder(nn.Module):
             z_channels (Int) : the number of channels of latents.
             num_layers (Int) : layers of downsampling.
             num_res_blocks (Int) : number of ResnetBlocks in downsampling.
+            attn_layers (List) : idxs of layers with Attention
             block_data_path (str): path to the directory with block jsons.
             use_pred_masks (bool) : whether to calc masks on pred_block_grid
         """
         super().__init__()
         self.num_layers = num_layers
+        self.channels = channels
         self.z_channels = z_channels
         self.num_res_blocks = num_res_blocks
 
@@ -253,6 +255,74 @@ class Decoder(nn.Module):
                 if len(self.up[i].attn) > 0:
                     h = self.up[i].attn[i_block](h)
             h = self.up[i].upsample(h)
+
+        h = self.norm_out(h)
+        h = nonlinearity(h)  # (B, D, W, H, L)
+
+        h = h.permute(0, 2, 3, 4, 1)  # (B, W, H, L, D)
+
+        block_type_logits = self.block_type_decoder(h)  # (B, W, H, L, num_blocks)
+        pred_block_type_grid = block_type_logits.argmax(-1)
+        attributes_logits, pred_attributes_masks = self.attribute_decoder(
+            h, pred_block_type_grid, **batch
+        )
+        return (
+            block_type_logits,
+            pred_block_type_grid,
+            attributes_logits,
+            pred_attributes_masks,
+            h,
+        )
+
+
+class DCDecoder(Decoder):
+    def channel_duplicate(self, x: torch.Tensor, factor: int = 4):
+        """
+        x: tensor of shape (B, D, W, H, L)
+        """
+        return x.repeat((1, factor, 1, 1, 1))
+
+    def channel2space(self, x: torch.Tensor, p: int = 2):
+        """
+        x: tensor of shape (B, D, W, H, L)
+        """
+
+        B, D, W, H, L = x.shape
+
+        x = x.view(B, p, p, p, D // p**3, W, H, L)
+        x = x.permute(0, 4, 5, 1, 6, 2, 7, 3)
+        return x.reshape(B, D // p**3, W * p, H * p, L * p)
+
+    def forward(self, z: torch.Tensor, **batch):
+        """
+        Decodes attributes and block type
+
+        Args:
+            z (Tensor) : a tensor of shape (B, z_dim, w, h, l)
+            batch (Dict): a dict representing batch of data samples.
+        Returns:
+            output (Tuple[Tensor, dict]): A pair with first element being a tensor of shape (B, W, H, L, num_blocks) representing the block_type_logits and second element representing attribute data
+        """
+
+        # z to block_in
+        p = self.channel_duplicate(
+            z, self.channels * 2**self.num_layers // self.z_channels
+        )
+        h = self.conv_in(z) + p
+
+        # middle
+        h = self.mid.block_1(h)
+        h = self.mid.attn_1(h)
+        h = self.mid.block_2(h)  # (B, block_in, w, h, l)
+
+        # upsampling
+        for i in reversed(range(self.num_layers)):
+            p = self.channel2space(self.channel_duplicate(h))
+            for i_block in range(self.num_res_blocks + 1):
+                h = self.up[i].block[i_block](h)
+                if len(self.up[i].attn) > 0:
+                    h = self.up[i].attn[i_block](h)
+            h = self.up[i].upsample(h) + p
 
         h = self.norm_out(h)
         h = nonlinearity(h)  # (B, D, W, H, L)

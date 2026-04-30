@@ -144,7 +144,11 @@ class Encoder(nn.Module):
         The class for DownSampling Block Grid into latents
 
         Args:
-            emb_dim (int): the size of features dimension.
+            channels (Int) : the dim of Embeddings.
+            z_channels (Int) : the number of channels of latents.
+            num_layers (Int) : layers of downsampling.
+            num_res_blocks (Int) : number of ResnetBlocks in downsampling.
+            attn_layers (List) : idxs of layers with Attention
             block_data_path (str): path to the directory with block jsons.
         """
         super().__init__()
@@ -152,6 +156,7 @@ class Encoder(nn.Module):
         self.attribute_encoder = AttributeEncoder(channels, block_data_path)
 
         self.num_layers = num_layers
+        self.channels = channels
         self.z_channels = z_channels
         self.num_res_blocks = num_res_blocks
 
@@ -230,4 +235,64 @@ class Encoder(nn.Module):
         h = self.norm_out(h)
         h = nonlinearity(h)
         h = self.conv_out(h)
+        return h, features.detach()  # detach for encoder endependence from decoder
+
+
+class DCEncoder(Encoder):
+    def space2channel(self, x: torch.Tensor, p: int = 2):
+        """
+        x: tensor of shape (B, D, W, H, L)
+        """
+
+        B, D, W, H, L = x.shape
+
+        x = x.reshape(B, D, W // p, p, H // p, p, L // p, p)
+        x = x.permute(0, 1, 2, 4, 6, 3, 5, 7)
+        x = x.reshape(B, D, W // p, H // p, L // p, p**3)
+        x = x.permute(0, 5, 1, 2, 3, 4)
+        return x.reshape(B, D * p**3, W // p, H // p, L // p)
+
+    def channel_avg(self, x: torch.Tensor, groups: int = 4):
+        """
+        x: tensor of shape (B, D, W, H, L)
+        """
+        B, D, W, H, L = x.shape
+        return x.reshape(B, groups, D // groups, W, H, L).mean(1)
+
+    def forward(self, **batch):
+        """
+        Encodes attributes and block type
+
+        Args:
+            batch (dict): a dict representing batch of data samples.
+        Returns:
+            latents (Tensor): a tensor of shape (B, z_dim * 2, w, h, l)
+        """
+        features = self.block_type_encoder(**batch) + self.attribute_encoder(
+            **batch
+        )  # (B, W, H, L, D)
+
+        h = features.permute(0, 4, 1, 2, 3)  # (B, D, W, H, L)
+
+        # downsampling
+        for i_level in range(self.num_layers):
+            # space-to-channel
+            p = self.channel_avg(self.space2channel(h))
+            for i_block in range(self.num_res_blocks):
+                h = self.down[i_level].block[i_block](h)
+                # if handle attn blocks
+                if len(self.down[i_level].attn):
+                    h = self.down[i_level].attn[i_block](h)
+            h = self.down[i_level].downsample(h) + p
+
+        # middle
+        h = self.mid.block_1(h)
+        h = self.mid.attn_1(h)
+        h = self.mid.block_2(h)
+
+        # end
+        p = self.channel_avg(
+            h, groups=self.channels * 2**self.num_layers // (2 * self.z_channels)
+        )
+        h = self.conv_out(h) + p
         return h, features.detach()  # detach for encoder endependence from decoder

@@ -1,10 +1,10 @@
 import torch
 from torch import nn
 
-from src.model.VAE.modules import Decoder, DiagonalGaussianDistribution, Encoder
+from src.model.VAE.modules import DCDecoder, DCEncoder, DiagonalGaussianDistribution
 
 
-class SDVAE(nn.Module):
+class DCAE(nn.Module):
     def __init__(
         self,
         channels=192,
@@ -25,10 +25,10 @@ class SDVAE(nn.Module):
         """
         super().__init__()
 
-        self.encoder = Encoder(
+        self.encoder = DCEncoder(
             channels, num_layers, z_channels, num_res_blocks, attn_layers
         )
-        self.decoder = Decoder(
+        self.decoder = DCDecoder(
             channels,
             num_layers,
             z_channels,
@@ -36,9 +36,6 @@ class SDVAE(nn.Module):
             attn_layers,
             use_pred_masks=use_pred_masks,
         )
-
-        self.quant_conv = nn.Conv3d(z_channels * 2, z_channels * 2, 1)
-        self.post_quant_conv = nn.Conv3d(z_channels, z_channels, 1)
 
     def post_init(self, device):
         for key in self.encoder.attribute_encoder.attr_pair2idxs:
@@ -53,8 +50,7 @@ class SDVAE(nn.Module):
 
     def encode(self, **batch) -> DiagonalGaussianDistribution:
         h, features = self.encoder(**batch)  # (B, W, H, L, z_dim * 2)
-        moments = self.quant_conv(h)
-        posterior = DiagonalGaussianDistribution(moments)
+        posterior = DiagonalGaussianDistribution(h)
         return posterior, features
 
     def decode(
@@ -63,7 +59,6 @@ class SDVAE(nn.Module):
         """
         z : tensor of latents of shape (B, W, H, L, z_dim)
         """
-        z = self.post_quant_conv(z)  # (B, W, H, L, z_dim)
         return self.decoder(z, **batch)
 
     def forward(self, **batch):

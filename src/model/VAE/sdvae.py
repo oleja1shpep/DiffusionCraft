@@ -11,6 +11,7 @@ class SDVAE(nn.Module):
         z_channels=16,
         num_layers=3,
         num_res_blocks=2,
+        attn_layers=[],
         use_pred_masks=False,
     ):
         """
@@ -19,16 +20,20 @@ class SDVAE(nn.Module):
             z_channels (Int) : the number of channels of latents.
             num_layers (Int) : layers of downsampling.
             num_res_blocks (Int) : number of ResnetBlocks in downsampling.
+            num_attn_blocks (Int) : number of Attention blocks in downsampling. Each one is placed after ResnetBlocks
             use_pred_masks (bool) : whether to calc masks on pred_block_grid
         """
         super().__init__()
 
-        self.encoder = Encoder(channels, num_layers, z_channels, num_res_blocks)
+        self.encoder = Encoder(
+            channels, num_layers, z_channels, num_res_blocks, attn_layers
+        )
         self.decoder = Decoder(
             channels,
             num_layers,
             z_channels,
             num_res_blocks,
+            attn_layers,
             use_pred_masks=use_pred_masks,
         )
 
@@ -81,3 +86,18 @@ class SDVAE(nn.Module):
             "gt_features": gt_features,
             "pred_features": pred_features,
         }
+
+    def __str__(self):
+        """
+        Model prints with the number of parameters.
+        """
+        all_parameters = sum([p.numel() for p in self.parameters()])
+        trainable_parameters = sum(
+            [p.numel() for p in self.parameters() if p.requires_grad]
+        )
+
+        result_info = super().__str__()
+        result_info = result_info + f"\nAll parameters: {all_parameters}"
+        result_info = result_info + f"\nTrainable parameters: {trainable_parameters}"
+
+        return result_info

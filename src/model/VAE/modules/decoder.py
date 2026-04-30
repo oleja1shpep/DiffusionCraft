@@ -150,6 +150,7 @@ class Decoder(nn.Module):
         num_layers=3,
         z_channels=16,
         num_res_blocks=2,
+        attn_layers=[],
         block_data_path="src/block_data",
         use_pred_masks=False,
     ):
@@ -192,15 +193,19 @@ class Decoder(nn.Module):
         self.up = nn.ModuleList()
         for i in reversed(range(num_layers)):
             block = nn.ModuleList()
+            attn = nn.ModuleList()
             block_out = channels * (2**i)
             for _ in range(num_res_blocks + 1):
                 block.append(
                     ResnetBlock3D(in_channels=block_in, out_channels=block_out)
                 )
                 block_in = block_out
+                if i in attn_layers:
+                    attn.append(AttnBlock(block_in))
 
             up = nn.Module()
             up.block = block
+            up.attn = attn
             up.upsample = Upsample(block_in)
             self.up.insert(0, up)  # prepend to get consistent order
 
@@ -245,6 +250,8 @@ class Decoder(nn.Module):
         for i in reversed(range(self.num_layers)):
             for i_block in range(self.num_res_blocks + 1):
                 h = self.up[i].block[i_block](h)
+                if len(self.up[i].attn) > 0:
+                    h = self.up[i].attn[i_block](h)
             h = self.up[i].upsample(h)
 
         h = self.norm_out(h)

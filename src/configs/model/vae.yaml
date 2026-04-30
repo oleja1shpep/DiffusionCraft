@@ -3,4 +3,5 @@ channels: 128
 z_channels: 32
 num_layers: 3 # f8
 num_res_blocks: 2
+attn_layers: [1,2]
 use_pred_masks: False

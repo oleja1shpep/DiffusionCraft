@@ -137,6 +137,7 @@ class Encoder(nn.Module):
         num_layers=3,
         z_channels=16,
         num_res_blocks=2,
+        attn_layers=[],
         block_data_path="src/block_data",
     ):
         """
@@ -157,6 +158,7 @@ class Encoder(nn.Module):
         self.down = nn.ModuleList()
         for i in range(self.num_layers):
             block = nn.ModuleList()
+            attn = nn.ModuleList()
             block_in = channels * (2**i)
             block_out = channels * (2 ** (i + 1))
             for _ in range(self.num_res_blocks):
@@ -167,9 +169,12 @@ class Encoder(nn.Module):
                     )
                 )
                 block_in = block_out
+                if i in attn_layers:
+                    attn.append(AttnBlock(block_in))
 
             down = nn.Module()
             down.block = block
+            down.attn = attn
             down.downsample = Downsample(block_in)
 
             self.down.append(down)
@@ -211,6 +216,9 @@ class Encoder(nn.Module):
         for i_level in range(self.num_layers):
             for i_block in range(self.num_res_blocks):
                 h = self.down[i_level].block[i_block](h)
+                # if handle attn blocks
+                if len(self.down[i_level].attn):
+                    h = self.down[i_level].attn[i_block](h)
             h = self.down[i_level].downsample(h)
 
         # middle

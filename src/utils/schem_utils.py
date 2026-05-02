@@ -12,7 +12,15 @@ from nbtlib.tag import *
 from tqdm import tqdm
 
 from src.utils.io_utils import read_json
-from src.utils.model_utils import AIR, AIR_BLOCK_IDX, BLOCK_TYPE, INFESTED, get_head_key
+from src.utils.model_utils import (
+    AIR,
+    AIR_BLOCK_IDX,
+    BLOCK_TYPE,
+    INFESTED,
+    LIGHTNING_ROD,
+    PALE_OAK,
+    get_head_key,
+)
 
 
 class _VarintIO:
@@ -67,7 +75,9 @@ def _initFromFile(schematicToLoadPath: str):
     )
 
     ## Init the block palette
-    filePalette = fileBase["Palette"]
+    filePalette = (
+        fileBase["Palette"] if "Palette" in fileBase else fileBase["Blocks"]["Palette"]
+    )
     structureBlockPalette = {}
 
     for blockState, idTagInPalette in filePalette.items():
@@ -112,9 +122,15 @@ def _initFromFile(schematicToLoadPath: str):
 
     ## Init the blockStates in _blockStates
     structureBlockStates: dict[tuple[int, int, int], int] = {}
+
+    fileBlockStatesIds = None
     if "BlockData" in fileBase:
-        # Get the necessary data for blockState loading
         fileBlockStatesIds = fileBase["BlockData"]
+    elif "Blocks" in fileBase:
+        fileBlockStatesIds = fileBase["Blocks"]["Data"]
+
+    if fileBlockStatesIds is not None:
+        # Get the necessary data for blockState loading
         blockStatesIds = bytearray(fileBlockStatesIds)
         schemOffset = (0, 0, 0)  # fileBase['Offset']
         # schemHeight = int(fileBase["Height"])  # y
@@ -341,11 +357,25 @@ def block_to_idx(block: str, block2idx: dict[str, int]) -> int:
             block = "minecraft:oak_wall_sign"
         elif block == "minecraft:grass_path":
             block = "minecraft:dirt_path"
+        elif block == "minecraft:short_grass":
+            block = "minecraft:grass"
+        elif block == "minecraft:iron_chain":
+            block = "minecraft:chain"
+        elif block == "minecraft:pale_moss_block":
+            block = "minecraft:moss_block"
+        elif block == "minecraft:pale_moss_carpet":
+            block = "minecraft:moss_carpet"
+        elif block.endswith(LIGHTNING_ROD):
+            block = "minecraft:" + LIGHTNING_ROD
+        elif PALE_OAK in block:
+            idx = block.find(PALE_OAK)
+            block = block[:idx] + "oak" + block[idx + len(PALE_OAK) :]
         elif block.startswith(INFESTED):
             block = "minecraft:" + block[len(INFESTED) :]
-        else:
-            block = AIR
-            not_found = True
+
+    if block not in block2idx:
+        block = AIR
+        not_found = True
     return block, block2idx[block], not_found
 
 

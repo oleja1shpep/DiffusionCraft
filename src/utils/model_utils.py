@@ -9,6 +9,8 @@ from matplotlib.figure import Figure
 from PIL import Image
 
 INFESTED = "minecraft:infested_"
+PALE_OAK = "pale_oak"
+LIGHTNING_ROD = "lightning_rod"
 AIR = "minecraft:air"
 WATER = "minecraft:water"
 BLOCK_TYPE = "block_type"

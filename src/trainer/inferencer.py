@@ -68,15 +68,10 @@ class Inferencer(BaseTrainer):
 
         # define metrics
         self.metrics = metrics
-        self.special_names = ["AttributeAccuracy", "RawAttributeAccuracy"]
-        self.suffixes = ["Min", "Max", "Mean", "Median"]
 
         if self.metrics is not None:
             self.evaluation_metrics = MetricTracker(
-                *[m.name for m in self.metrics["inference"]],
-                writer=None,
-                special_names=self.special_names,
-                suffixes=self.suffixes,
+                *[], writer=None, metrics=self.metrics["inference"]
             )
         else:
             self.evaluation_metrics = None
@@ -99,7 +94,7 @@ class Inferencer(BaseTrainer):
             part_logs[part] = logs
         return part_logs
 
-    def process_batch(self, batch_idx, batch, metrics: MetricTracker, part):
+    def process_batch(self, batch_idx, batch, tracker: MetricTracker, part):
         """
         Run batch through the model, compute metrics, and
         save predictions to disk.
@@ -127,9 +122,9 @@ class Inferencer(BaseTrainer):
         outputs = self.model(**batch)
         batch.update(outputs)
 
-        if metrics is not None:
-            for met in self.metrics["inference"]:
-                metrics.update(met.name, met(**batch))
+        if tracker is not None:
+            for met in tracker.metrics:
+                met(**batch)  # calculate metrics
 
         return batch
 
@@ -163,7 +158,7 @@ class Inferencer(BaseTrainer):
                     batch_idx=batch_idx,
                     batch=batch,
                     part=part,
-                    metrics=self.evaluation_metrics,
+                    tracker=self.evaluation_metrics,
                 )
 
         return self.evaluation_metrics.result()

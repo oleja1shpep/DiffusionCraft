@@ -14,12 +14,12 @@ train:
 inference:
   - _target_: src.metrics.BlockTypeAccuracy
     name: "BlockTypeAccuracy"
-  - _target_: src.metrics.MacroAccuracy
-    name: "MacroBlockTypeAccuracy"
+  - _target_: src.metrics.MacroRecall
+    name: "MacroRecall"
   - _target_: src.metrics.AP
     name: "AirAP"
   - _target_: src.metrics.AP
-    name: "mAP"
+    name: "mAP_new"
     air_only: False
   - _target_: src.metrics.AttributeAccuracy
     name: "AttributeAccuracy"

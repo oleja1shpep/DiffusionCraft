@@ -132,23 +132,16 @@ class BaseTrainer:
         self.writer = writer
 
         # define metrics
-        self.metrics = metrics
-        self.special_names = ["AttributeAccuracy", "RawAttributeAccuracy"]
-        self.suffixes = ["Min", "Max", "Mean", "Median"]
         self.train_metrics = MetricTracker(
             *self.config.writer.loss_names,
             "grad_norm",
-            *[m.name for m in self.metrics["train"]],
             writer=self.writer,
-            special_names=self.special_names,
-            suffixes=self.suffixes,
+            metrics=metrics["train"],
         )
         self.evaluation_metrics = MetricTracker(
             *self.config.writer.loss_names,
-            *[m.name for m in self.metrics["inference"]],
             writer=self.writer,
-            special_names=self.special_names,
-            suffixes=self.suffixes,
+            metrics=metrics["inference"],
         )
 
         # define checkpoint dir and init everything if required
@@ -267,7 +260,7 @@ class BaseTrainer:
                     batch_idx,
                     epoch,
                     batch,
-                    metrics=self.train_metrics,
+                    tracker=self.train_metrics,
                 )
                 if self.config.trainer.profile_train:
                     prof.step()
@@ -361,7 +354,7 @@ class BaseTrainer:
                     batch_idx,
                     epoch,
                     batch,
-                    metrics=self.evaluation_metrics,
+                    tracker=self.evaluation_metrics,
                 )
                 if self.config.trainer.profile_val:
                     prof.step()
@@ -560,26 +553,23 @@ class BaseTrainer:
         Args:
             metric_tracker (MetricTracker): calculated metrics.
         """
+        # log regular metrics
         for metric_name in metric_tracker.keys():
-            if metric_name in self.special_names:
-                for suff in self.suffixes:
-                    value = torch.tensor(
-                        metric_tracker.avg(metric_name + suff),
-                        device=self.accelerator.device,
-                    )
-                    value = self.accelerator.reduce(value, reduction="mean")
-
-                    if self.accelerator.is_main_process:
-                        self.writer.add_scalar(
-                            f"{metric_name + suff}", value.cpu().item()
-                        )
-                continue
             value = torch.tensor(
                 metric_tracker.avg(metric_name), device=self.accelerator.device
             )
             value = self.accelerator.reduce(value, reduction="mean")
             if self.accelerator.is_main_process:
                 self.writer.add_scalar(f"{metric_name}", value.cpu().item())
+
+        # log custom metrics
+        for met in metric_tracker.metrics:
+            met_res = met.result()
+            for key in met_res:
+                value = torch.tensor(met_res[key], device=self.accelerator.device)
+                value = self.accelerator.reduce(value, reduction="mean")
+                if self.accelerator.is_main_process:
+                    self.writer.add_scalar(f"{key}", value.cpu().item())
 
     def _save_checkpoint(self, epoch, save_best=False):
         """

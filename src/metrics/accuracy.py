@@ -1,3 +1,6 @@
+from collections import defaultdict
+
+import numpy as np
 import torch
 
 from src.metrics.base_metric import BaseMetric
@@ -17,7 +20,14 @@ class BlockTypeAccuracy(BaseMetric):
             metric (Callable): function to calculate metrics.
             device (str): device for the metric calculation (and tensors).
         """
+        self.accuracies = []
         super().__init__(*args, **kwargs)
+
+    def reset(self):
+        self.accuracies = []
+
+    def result(self):
+        return {self.name: np.mean(self.accuracies)}
 
     def __call__(
         self, block_type_grid: torch.Tensor, pred_block_type_grid: torch.Tensor, **batch
@@ -32,7 +42,7 @@ class BlockTypeAccuracy(BaseMetric):
             metric (float): calculated metric.
         """
         gt_non_air_mask = block_type_grid != AIR_BLOCK_IDX
-        return (
+        self.accuracies.append(
             (block_type_grid[gt_non_air_mask] == pred_block_type_grid[gt_non_air_mask])
             .to(torch.float32)
             .mean()
@@ -40,16 +50,36 @@ class BlockTypeAccuracy(BaseMetric):
         )
 
 
-class MacroAccuracy(BaseMetric):
+class MacroRecall(BaseMetric):
     def __init__(self, *args, **kwargs):
         """
-        Macro Accuracy among blocks
+        Macro Recall (Accuracy) among blocks
 
         Args:
             metric (Callable): function to calculate metrics.
             device (str): device for the metric calculation (and tensors).
         """
+        self.accuracy = defaultdict(list)
+        self.old_accruracy = []
         super().__init__(*args, **kwargs)
+        self.reset()
+
+    def reset(self):
+        self.accuracy = defaultdict(list)
+        self.old_accruracy = []
+
+    def result(self):
+        accuracies = []
+
+        for v in self.accuracy.values():
+            accuracies.append(np.mean(v))
+
+        return {
+            self.name: np.mean(accuracies),
+            "MacroBlockTypeAccuracy": np.mean(self.old_accruracy)
+            if len(self.old_accruracy)
+            else np.nan,
+        }
 
     def __call__(
         self,
@@ -69,30 +99,23 @@ class MacroAccuracy(BaseMetric):
         """
         B = block_type_logits.shape[0]
         num_classes = block_type_logits.shape[-1]
-        allowed_classes = list(range(num_classes))
-        allowed_classes.remove(AIR_BLOCK_IDX)
 
-        results = []
+        result = []
         for b in range(B):
-            per_class_acc = 0
-            present_classes = 0
-
             target = block_type_grid[b]
             pred = pred_block_type_grid[b]
 
-            for c in allowed_classes:
+            for c in range(num_classes):
                 class_mask = target == c
                 class_count = class_mask.sum().item()
                 if class_count != 0:
-                    present_classes += 1
                     correct = (pred[class_mask] == c).sum().item()
-                    per_class_acc += correct / class_count
-            if present_classes:
-                results.append(per_class_acc / present_classes)
-        if results:
-            return torch.tensor(results).mean().item()
-        else:
-            return 0
+                    self.accuracy[c].append(correct / class_count)
+                    if c != AIR_BLOCK_IDX:
+                        result.append(correct / class_count)
+        if len(result) == 0:
+            result = [0]
+        self.old_accruracy.append(np.mean(result))
 
 
 class AttributeAccuracy(BaseMetric):
@@ -110,7 +133,27 @@ class AttributeAccuracy(BaseMetric):
         """
         super().__init__(*args, **kwargs)
 
+        self.accuracies = defaultdict(list)
         self.block_equality = block_equality
+        self.reset()
+
+    def reset(self):
+        self.accuracies = defaultdict(list)
+
+    def result(self):
+        accuracies = []
+
+        for values in self.accuracies.values():
+            accuracies.append(np.mean(values))
+
+        accuracies = np.array(accuracies)
+
+        return {
+            self.name + "Min": accuracies.min() if len(accuracies) else np.nan,
+            self.name + "Max": accuracies.max() if len(accuracies) else np.nan,
+            self.name + "Mean": accuracies.mean() if len(accuracies) else np.nan,
+            self.name + "Median": np.median(accuracies) if len(accuracies) else np.nan,
+        }
 
     def __call__(
         self,
@@ -135,8 +178,6 @@ class AttributeAccuracy(BaseMetric):
         if self.block_equality:
             block_equality_mask = block_type_grid == pred_block_type_grid
 
-        results = dict()
-
         for head_key in attributes_values:
             if self.block_equality:
                 attr_mask = block_equality_mask[attributes_masks[head_key]]  # (N, )
@@ -148,17 +189,6 @@ class AttributeAccuracy(BaseMetric):
                 pred_attributes = attributes_logits[head_key].argmax(-1)
 
             if len(gt_attributes) and len(pred_attributes):
-                results[head_key] = (
-                    (gt_attributes == pred_attributes).to(torch.float32).mean()
+                self.accuracies[head_key].append(
+                    (gt_attributes == pred_attributes).to(torch.float32).mean().item()
                 )
-
-        results = torch.tensor(list(results.values()))
-        if len(results) == 0:
-            results = torch.tensor([0.0])
-
-        return {
-            "Min": results.min().item(),
-            "Max": results.max().item(),
-            "Mean": results.mean().item(),
-            "Median": results.median().item(),
-        }

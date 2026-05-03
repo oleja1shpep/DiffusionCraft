@@ -6,7 +6,7 @@ class MetricTracker:
     Class to aggregate metrics from many batches.
     """
 
-    def __init__(self, *keys, writer=None, special_names=[], suffixes=[]):
+    def __init__(self, *keys, writer=None, metrics=[]):
         """
         Args:
             *keys (list[str]): list (as positional arguments) of metric
@@ -15,18 +15,13 @@ class MetricTracker:
                 Not used in this code version. Can be used to log metrics
                 from each batch.
         """
-        self.special_names = special_names
-        self.suffixes = suffixes
 
         self.writer = writer
 
         keys = list(keys)
-        for met_name in special_names:
-            if met_name in keys:
-                keys.pop(keys.index(met_name))
-                for suff in self.suffixes:
-                    keys.append(met_name + suff)
         self._data = pd.DataFrame(index=keys, columns=["total", "counts", "average"])
+
+        self.metrics = metrics
         self.reset()
 
     def reset(self):
@@ -35,6 +30,9 @@ class MetricTracker:
         """
         for col in self._data.columns:
             self._data[col].values[:] = 0
+
+        for met in self.metrics:
+            met.reset()
 
     def update(self, key, value, n=1):
         """
@@ -47,15 +45,6 @@ class MetricTracker:
         """
         # if self.writer is not None:
         #     self.writer.add_scalar(key, value)
-
-        if key in self.special_names:
-            for suff in self.suffixes:
-                self._data.loc[key + suff, "total"] += value[suff] * n
-                self._data.loc[key + suff, "counts"] += n
-                self._data.loc[key + suff, "average"] = (
-                    self._data.total[key + suff] / self._data.counts[key + suff]
-                )
-            return
 
         self._data.loc[key, "total"] += value * n
         self._data.loc[key, "counts"] += n
@@ -70,7 +59,8 @@ class MetricTracker:
         Returns:
             average_value (float): average value for the metric.
         """
-        return self._data.average[key]
+        if key in self._data.average:
+            return self._data.average[key]
 
     def result(self):
         """
@@ -80,7 +70,12 @@ class MetricTracker:
             average_metrics (dict): dict, containing average metrics
                 for each metric name.
         """
-        return dict(self._data.average)
+        result = dict(self._data.average)
+        for met in self.metrics:
+            met_res = met.result()
+            for name in met_res:
+                result[name] = met_res[name]
+        return result
 
     def keys(self):
         """

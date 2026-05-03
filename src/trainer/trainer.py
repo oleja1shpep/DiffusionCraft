@@ -44,7 +44,7 @@ class Trainer(BaseTrainer):
                     if torch.any(batch[key][k].isnan()):
                         print(f"NaN in batch element: {key} in key {k}")
 
-    def process_batch(self, step, epoch, batch: dict, metrics: MetricTracker):
+    def process_batch(self, step, epoch, batch: dict, tracker: MetricTracker):
         """
         Run batch through the model, compute metrics, compute loss,
         and do training step (during training stage).
@@ -67,10 +67,6 @@ class Trainer(BaseTrainer):
         batch = self.transform_batch(batch)  # transform batch on device -- faster
 
         current_step = (epoch - 1) * self.epoch_len + step
-
-        metric_funcs = self.metrics["inference"]
-        if self.is_train:
-            metric_funcs = self.metrics["train"]
 
         if self.is_train:
             with self.accelerator.accumulate(self.model):
@@ -99,7 +95,7 @@ class Trainer(BaseTrainer):
                         self.logger.debug(
                             f"Step: {current_step} | HIGH GRAD NORM: {grad_norm} | Batch Indexes: {batch['idxs']}"
                         )
-                self.train_metrics.update("grad_norm", grad_norm)
+                tracker.update("grad_norm", grad_norm)
                 self.optimizer.zero_grad()
         else:
             outputs = self.model(**batch)
@@ -112,16 +108,16 @@ class Trainer(BaseTrainer):
             self.check_nan_inf(**batch)
         # update metrics for each loss (in case of multiple losses)
         for loss_name in self.config.writer.loss_names:
-            metrics.update(loss_name, batch[loss_name].item())
+            tracker.update(loss_name, batch[loss_name].item())
 
-        for met in metric_funcs:
-            value = met(**batch)
-            metrics.update(met.name, value)
-            if met.name == "MaxMemoryAllocated":
-                if value > 55:
-                    self.logger.debug(
-                        f"Step: {current_step} | HIGH MEMORY CONSUMPTION: {round(value, 2)}Gb | Batch Indexes: {batch['idxs']}"
-                    )
+        if tracker is not None:
+            for met in tracker.metrics:
+                value = met(**batch)  # calculate metrics
+                if met.name == "MaxMemoryAllocated":
+                    if value > 55:
+                        self.logger.debug(
+                            f"Step: {current_step} | HIGH MEMORY CONSUMPTION: {round(value, 2)}Gb | Batch Indexes: {batch['idxs']}"
+                        )
 
         return batch
 

@@ -20,3 +20,13 @@ class BaseMetric:
         Can use external functions (like TorchMetrics) or custom ones.
         """
         raise NotImplementedError()
+
+    @abstractmethod
+    def reset(self):
+        "Resets the metrics accumulated value"
+        raise NotImplementedError()
+
+    @abstractmethod
+    def result(self):
+        "Returns the metrics accumulated value (mean)"
+        raise NotImplementedError()

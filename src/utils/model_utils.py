@@ -167,5 +167,5 @@ def make_class_weights(values: torch.Tensor, power=0.3, eps=1e-5) -> torch.Tenso
     max_count = values.max()
 
     weights = (max_count / (values + eps)) ** power
-    weights = weights / weights.max() * 9.9  # редчайшие классы -> 10
-    return weights + 0.1
+    weights = weights / weights.max() * 0.9  # редчайшие классы -> 1
+    return weights + 0.01  # Зажимаем между 0.01 и 1

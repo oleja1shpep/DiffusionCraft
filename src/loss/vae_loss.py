@@ -46,7 +46,12 @@ class AttributeLoss(nn.Module):
 
 
 class BlockTypeLoss(nn.Module):
-    def __init__(self, block_weights=True, block_data_path="./src/block_data"):
+    def __init__(
+        self,
+        block_weights=True,
+        block_weights_power=0.3,
+        block_data_path="./src/block_data",
+    ):
         super().__init__()
         block2idx = read_json(ROOT_PATH / block_data_path / "block2idx.json")
         statistics = read_json(ROOT_PATH / block_data_path / "statistics.json")
@@ -56,7 +61,7 @@ class BlockTypeLoss(nn.Module):
             for k, v in statistics.items():
                 weight[block2idx[k]] = v
             mask = weight > 0
-            weight[mask] = make_class_weights(weight[mask])
+            weight[mask] = make_class_weights(weight[mask], power=block_weights_power)
         else:
             weight[AIR_BLOCK_IDX] = 1 / 10
             weight[block2idx[WATER]] = 1 / 3
@@ -130,9 +135,10 @@ class VAELoss(nn.Module):
         feature_loss_type=None,
         feature_loss_weight=1.0,
         block_weights=True,
+        block_weights_power=0.3,
     ):
         super().__init__()
-        self.block_type_loss = BlockTypeLoss(block_weights)
+        self.block_type_loss = BlockTypeLoss(block_weights, block_weights_power)
         self.attribute_loss = AttributeLoss(attr_loss_weight)
         self.kl_loss = KLLoss(kl_weight)
         self.feature_loss = FeatureLoss(feature_loss_type, feature_loss_weight)

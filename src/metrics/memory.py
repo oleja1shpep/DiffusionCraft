@@ -13,9 +13,13 @@ class MaxMemoryAllocated(BaseMetric):
         self.allocated_mem = []
 
     def result(self):
-        return {self.name: np.mean(self.allocated_mem)}
+        return {
+            self.name: np.mean(self.allocated_mem)
+            if len(self.allocated_mem)
+            else np.nan
+        }
 
-    def __call__(self, idxs, **batch):
+    def __call__(self, **batch):
         """
         Metric calculation logic.
 

@@ -5,9 +5,9 @@ train:
   - _target_: src.metrics.AP
     name: "AirAP"
   - _target_: src.metrics.AttributeAccuracy
-    name: "AttributeAccuracy"
+    name: "MatchedAttrAccuracy"
   - _target_: src.metrics.AttributeAccuracy
-    name: "RawAttributeAccuracy"
+    name: "GlobalAttrAccuracy"
     block_equality: False
   - _target_: src.metrics.MaxMemoryAllocated
     name: MaxMemoryAllocated
@@ -22,7 +22,7 @@ inference:
     name: "mAP_new"
     air_only: False
   - _target_: src.metrics.AttributeAccuracy
-    name: "AttributeAccuracy"
+    name: "MatchedAttrAccuracy"
   - _target_: src.metrics.AttributeAccuracy
-    name: "RawAttributeAccuracy"
+    name: "GlobalAttrAccuracy"
     block_equality: False

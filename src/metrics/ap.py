@@ -35,9 +35,10 @@ class AP(BaseMetric):
         aps = []
         for values in self.ap.values():
             aps.append(np.mean(values))
-        result = {self.name: np.mean(values)}
+        result = {self.name: np.mean(aps) if len(aps) else np.nan}
+
         if not self.air_only:
-            result.update({"mAP": np.mean(self.old_ap)})
+            result.update({"mAP": np.mean(self.old_ap) if len(self.old_ap) else np.nan})
         return result
 
     def __call__(
@@ -55,9 +56,7 @@ class AP(BaseMetric):
         num_classes = block_type_logits.shape[-1]
         B = len(block_type_grid)
 
-        allowed_classes = list(range(num_classes))
-        if self.air_only:
-            allowed_classes = [AIR_BLOCK_IDX]
+        allowed_classes = [AIR_BLOCK_IDX] if self.air_only else list(range(num_classes))
 
         results = []
         for b in range(B):
@@ -77,5 +76,3 @@ class AP(BaseMetric):
 
         if results:
             self.old_ap.append(np.mean(results))
-        else:
-            self.old_ap.append(0)

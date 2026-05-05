@@ -60,6 +60,8 @@ class AP(BaseMetric):
 
         results = []
         for b in range(B):
+            AP_old = 0
+            present_classes = 0
             for c in allowed_classes:
                 target = (
                     (block_type_grid[b] == c).flatten().cpu().numpy().astype(np.int32)
@@ -72,7 +74,10 @@ class AP(BaseMetric):
                     aucpr = auc(recall, precision)
                     self.ap[c].append(aucpr)
                     if c != AIR_BLOCK_IDX:
-                        results.append(aucpr)
+                        AP_old += aucpr
+                        present_classes += 1
+            if present_classes:
+                results.append(AP_old / present_classes)
 
         if results:
             self.old_ap.append(np.mean(results))

@@ -100,8 +100,11 @@ class MacroRecall(BaseMetric):
         B = block_type_logits.shape[0]
         num_classes = block_type_logits.shape[-1]
 
-        result = []
+        results = []
         for b in range(B):
+            per_class_acc = 0
+            present_classes = 0
+
             target = block_type_grid[b]
             pred = pred_block_type_grid[b]
 
@@ -112,9 +115,11 @@ class MacroRecall(BaseMetric):
                     correct = (pred[class_mask] == c).sum().item()
                     self.accuracy[c].append(correct / class_count)
                     if c != AIR_BLOCK_IDX:
-                        result.append(correct / class_count)
-        if len(result):
-            self.old_accruracy.append(np.mean(result))
+                        per_class_acc += correct / class_count
+            if present_classes:
+                results.append(per_class_acc / present_classes)
+        if len(results):
+            self.old_accruracy.append(np.mean(results))
 
 
 class AttributeAccuracy(BaseMetric):
@@ -208,8 +213,9 @@ class AttributeAccuracy(BaseMetric):
                 acc = (gt_attributes == pred_attributes).to(torch.float32).mean().item()
                 self.accuracies[head_key].append(acc)
                 result.append(acc)
-        if len(result):
-            self.old_accuracies["Min"].append(np.min(result))
-            self.old_accuracies["Max"].append(np.max(result))
-            self.old_accuracies["Mean"].append(np.mean(result))
-            self.old_accuracies["Median"].append(np.median(result))
+        if len(result) == 0:
+            result = [0]
+        self.old_accuracies["Min"].append(np.min(result))
+        self.old_accuracies["Max"].append(np.max(result))
+        self.old_accuracies["Mean"].append(np.mean(result))
+        self.old_accuracies["Median"].append(np.median(result))

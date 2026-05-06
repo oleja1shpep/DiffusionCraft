@@ -35,6 +35,7 @@ from src.utils.schem_utils import (
     filter_attribute_dict,
     get_head_key,
     parse_block,
+    remove_air_padding,
 )
 
 
@@ -140,33 +141,37 @@ def parse_schematics(
                 (width, height, length), dtype=torch.int16
             )  # x, y, z
 
+            block_grid_tensor, borders = remove_air_padding(block_grid_tensor)
+            min_x, max_x, min_y, max_y, min_z, max_z = borders
+
             attributes = {}
 
             for x, y, z in coord2byte:
-                block_byte = coord2byte[(x, y, z)]
-                block = palette[block_byte]
+                # check if coords are within the borders
+                if (
+                    (min_x <= x <= max_x)
+                    and (min_y <= y <= max_y)
+                    and (min_z <= z <= max_z)
+                ):
+                    block_byte = coord2byte[(x, y, z)]
+                    block = palette[block_byte]
 
-                block, attr_dict = parse_block(block)  # str, dict
-                block, block_idx, _ = block_to_idx(block, block2idx)  # str, int
-                if block == AIR:
-                    attr_dict = {}
+                    block, attr_dict = parse_block(block)  # str, dict
+                    block, block_idx, _ = block_to_idx(block, block2idx)  # str, int
+                    if block == AIR:
+                        attr_dict = {}
 
-                attr_dict = filter_attribute_dict(
-                    block=block,
-                    attr_dict=attr_dict,
-                    attributes_defaults=attributes_defaults,
-                    block_attributes_defaults=block_attributes_defaults,
-                    filtered_blocks_dict=filtered_blocks_dict,
-                )
+                    attr_dict = filter_attribute_dict(
+                        block=block,
+                        attr_dict=attr_dict,
+                        attributes_defaults=attributes_defaults,
+                        block_attributes_defaults=block_attributes_defaults,
+                        filtered_blocks_dict=filtered_blocks_dict,
+                    )
 
-                block_grid_tensor[x][y][z] = block_idx
-                if len(attr_dict):
-                    attributes[(x, y, z)] = attr_dict
-
-            os.makedirs(output_dir / structure_name, exist_ok=True)
-            torch.save(
-                block_grid_tensor, output_dir / structure_name / f"{BLOCK_TYPE}.pt"
-            )  # int16
+                    block_grid_tensor[x - min_x][y - min_y][z - min_z] = block_idx
+                    if len(attr_dict):
+                        attributes[(x - min_x, y - min_y, z - min_z)] = attr_dict
 
             # create masks and attr vectors for each attr-value pair
             attributes_data = dict()
@@ -189,6 +194,11 @@ def parse_schematics(
                 attributes_data[head_key]["values"] = torch.tensor(
                     attribute_values, dtype=torch.int8
                 )  # int8
+
+            os.makedirs(output_dir / structure_name, exist_ok=True)
+            torch.save(
+                block_grid_tensor, output_dir / structure_name / f"{BLOCK_TYPE}.pt"
+            )  # int16
 
             torch.save(
                 attributes_data, output_dir / structure_name / "attributes_data.pt"

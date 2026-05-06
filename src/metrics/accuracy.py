@@ -115,6 +115,7 @@ class MacroRecall(BaseMetric):
                     correct = (pred[class_mask] == c).sum().item()
                     self.accuracy[c].append(correct / class_count)
                     if c != AIR_BLOCK_IDX:
+                        present_classes += 1
                         per_class_acc += correct / class_count
             if present_classes:
                 results.append(per_class_acc / present_classes)
@@ -143,6 +144,7 @@ class AttributeAccuracy(BaseMetric):
         self.reset()
 
     def reset(self):
+        self.old_accuracies = defaultdict(list)
         self.accuracies = defaultdict(list)
 
     def result(self):

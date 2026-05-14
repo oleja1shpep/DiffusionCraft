@@ -150,7 +150,7 @@ class Trainer(BaseTrainer):
         part,
         **batch,
     ):
-        batch_size = block_type_grid.size(0) if part == "val_viz" else 1
+        batch_size = block_type_grid.size(0) if part == "viz" else 1
 
         for b in range(batch_size):
             gt_render: Image.Image = render_block_grid(
@@ -163,7 +163,7 @@ class Trainer(BaseTrainer):
                 self.block2color,
                 self.idx2block,
             )
-            if part == "val_viz":
+            if part == "viz":
                 idx = idxs[b]
                 self.writer.add_image(f"{idx}_gt_render", gt_render)
                 self.writer.add_image(f"{idx}_pred_render", pred_render)

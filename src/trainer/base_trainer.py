@@ -83,7 +83,7 @@ class BaseTrainer:
             self.model, self.optimizer, self.criterion
         )
         for k in dataloaders:
-            if k != "val_viz":
+            if k != "viz":
                 dataloaders[k] = self.accelerator.prepare(dataloaders[k])
         if self.lr_scheduler is not None:
             self.lr_scheduler = self.accelerator.prepare(self.lr_scheduler)
@@ -305,7 +305,7 @@ class BaseTrainer:
 
         # Run val/test
         for part, dataloader in self.evaluation_dataloaders.items():
-            if part != "val_viz":
+            if part != "viz":
                 val_logs = self._evaluation_epoch(epoch, part, dataloader)
                 logs.update(
                     **{f"{part}_{name}": value for name, value in val_logs.items()}
@@ -348,7 +348,7 @@ class BaseTrainer:
                 desc=part,
                 total=len(dataloader),
             ):
-                if part == "val_viz":
+                if part == "viz":
                     batch = self.move_batch_to_device(batch)
                 batch = self.process_batch(
                     batch_idx,
@@ -358,19 +358,19 @@ class BaseTrainer:
                 )
                 if self.config.trainer.profile_val:
                     prof.step()
-                if part != "val_viz":
+                if part != "viz":
                     batches = []  # log only the last batch during inference
                 batches.append((batch_idx, batch))
 
             if (
-                part == "val_viz"
-            ) or self.accelerator.is_main_process:  # if part is val_viz want to log from all processes
+                part == "viz"
+            ) or self.accelerator.is_main_process:  # if part is viz want to log from all processes
                 self.writer.set_step(epoch * self.epoch_len, part)
                 for batch_idx, batch in batches:
                     self._log_batch(
                         batch_idx, batch, part
                     )  # log only the last batch during inference
-            if part != "val_viz":
+            if part != "viz":
                 self._log_scalars(self.evaluation_metrics)
         if self.config.trainer.profile_val:
             prof.stop()

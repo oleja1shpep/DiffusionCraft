@@ -1,9 +1,12 @@
 train:
   _target_: src.datasets.VAEDataset
   name: "train"
+sub_train:
+  _target_: src.datasets.VAEDataset
+  name: "sub_train"
 val:
   _target_: src.datasets.VAEDataset
   name: "val"
-val_viz:
+viz:
   _target_: src.datasets.VAEDataset
-  name: "val_viz"
+  name: "viz"

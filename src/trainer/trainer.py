@@ -77,11 +77,17 @@ class Trainer(BaseTrainer):
                 batch.update(all_losses)
 
                 loss = batch["loss"].detach().item()
-                if loss > 5 and current_step > 5000:
-                    if self.config.trainer.get("debug", False):
+                if self.config.trainer.get("debug", False) and current_step > 4950:
+                    print("loss:", loss)
+                    if loss > 1:
                         self.logger.debug(
                             f"Step: {current_step} | HIGH LOSS: {loss} | Batch Indexes: {batch['idxs']}"
                         )
+                        opt_stats = self.get_aggregated_optimizer_stats()
+                        print(opt_stats)
+                        import pdb
+
+                        pdb.set_trace()
 
                 self.accelerator.backward(batch["loss"])  # division on accum steps
                 self._clip_grad_norm()
@@ -89,12 +95,28 @@ class Trainer(BaseTrainer):
                 if self.lr_scheduler is not None:
                     self.lr_scheduler.step()
                 grad_norm = self._get_grad_norm()
+                if self.config.trainer.get("debug", False) and current_step > 4950:
+                    param_norm = self._get_param_norm()
+                    print("lr", self.lr_scheduler.get_last_lr()[0])
+                    print("grad norm:", grad_norm)
+                    print("weight norm:", param_norm)
+                    print("Latents mean:", batch["latents"].mean.abs().max().item())
+                    print("Latents logvar max:", batch["latents"].logvar.max().item())
+                    print("Latents logvar min:", batch["latents"].logvar.min().item())
+                    print(
+                        "Latents logvar abs min:",
+                        batch["latents"].logvar.abs().min().item(),
+                    )
 
-                if grad_norm > 4 and current_step > 5000:
-                    if self.config.trainer.get("debug", False):
+                    if grad_norm > 1:
                         self.logger.debug(
                             f"Step: {current_step} | HIGH GRAD NORM: {grad_norm} | Batch Indexes: {batch['idxs']}"
                         )
+                        print(opt_stats)
+                        opt_stats = self.get_aggregated_optimizer_stats()
+                        import pdb
+
+                        pdb.set_trace()
                 tracker.update("grad_norm", grad_norm)
                 self.optimizer.zero_grad()
         else:

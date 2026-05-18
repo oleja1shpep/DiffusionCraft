@@ -510,6 +510,100 @@ class BaseTrainer:
         )
         return total_norm.item()
 
+    @torch.no_grad()
+    def _get_param_norm(self, norm_type=2):
+        """
+        Calculates the parameters norm for logging.
+
+        Args:
+            norm_type (float | str | None): the order of the norm.
+        Returns:
+            total_norm (float): the calculated norm.
+        """
+
+        parameters = self.model.parameters()
+        if isinstance(parameters, torch.Tensor):
+            parameters = [parameters]
+        # parameters = [p for p in parameters if p.grad is not None]
+        total_norm = torch.norm(
+            torch.stack([torch.norm(p.data.detach(), norm_type) for p in parameters]),
+            norm_type,
+        )
+        return total_norm.item()
+
+    def get_optimizer_statistics(self):
+        """
+        Возвращает словарь с накопленными статистиками оптимизатора.
+
+        Возвращает:
+            dict: ключи — названия буферов ('exp_avg', 'exp_avg_sq', 'step'),
+                значения — списки словарей с покомпонентными статистиками
+                (mean, std, min, max, l2_norm) для каждого параметра.
+        """
+        stats = {"exp_avg": [], "exp_avg_sq": [], "step": []}
+
+        for group_idx, group in enumerate(self.optimizer.param_groups):
+            for param_idx, p in enumerate(group["params"]):
+                if p not in self.optimizer.state:
+                    continue
+                state = self.optimizer.state[p]
+                for buf_name in ["exp_avg", "exp_avg_sq", "step"]:
+                    if buf_name in state and torch.is_tensor(state[buf_name]):
+                        buf = state[buf_name].detach()
+                        # Для step (может быть скалярным int-тензором) нормы не особо нужны
+                        if buf.ndim == 0:
+                            stats[buf_name].append(
+                                {
+                                    "value": buf.item(),
+                                    "group": group_idx,
+                                    "param": param_idx,
+                                    "shape": "scalar",
+                                }
+                            )
+                        else:
+                            stats[buf_name].append(
+                                {
+                                    "mean": buf.mean().item(),
+                                    "std": buf.std().item(),
+                                    "min": buf.min().item(),
+                                    "max": buf.max().item(),
+                                    "l2_norm": buf.norm().item(),
+                                    "group": group_idx,
+                                    "param": param_idx,
+                                    "shape": tuple(buf.shape),
+                                }
+                            )
+        return stats
+
+    def get_aggregated_optimizer_stats(self):
+        """
+        То же самое, но агрегирует все параметры в единую статистику.
+        Возвращает среднее, std, min, max, l2‑norm по всем элементам буфера.
+        """
+        agg = {}
+        for group in self.optimizer.param_groups:
+            for p in group["params"]:
+                if p not in self.optimizer.state:
+                    continue
+                state = self.optimizer.state[p]
+                for buf_name in ["exp_avg", "exp_avg_sq"]:
+                    if buf_name in state and torch.is_tensor(state[buf_name]):
+                        val = state[buf_name].detach().flatten()
+                        if buf_name not in agg:
+                            agg[buf_name] = []
+                        agg[buf_name].append(val)
+        result = {}
+        for buf_name, tensors in agg.items():
+            all_vals = torch.cat(tensors)
+            result[buf_name] = {
+                "mean": all_vals.mean().item(),
+                "std": all_vals.std().item(),
+                "min": all_vals.min().item(),
+                "max": all_vals.max().item(),
+                "l2_norm": all_vals.norm().item(),
+            }
+        return result
+
     def _progress(self, batch_idx):
         """
         Calculates the percentage of processed batch within the epoch.

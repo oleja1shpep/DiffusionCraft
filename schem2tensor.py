@@ -28,6 +28,7 @@ from tqdm import tqdm
 
 from src.utils.schem_utils import (
     AIR,
+    AIR_BLOCK_IDX,
     BLOCK_TYPE,
     _initFromFile,
     block_to_idx,
@@ -133,6 +134,10 @@ def parse_schematics(
                 print(f"Error: {e}\nFilename: {schm}")
                 continue
 
+            shape = torch.tensor([width, height, length])
+            if torch.any(shape > 90) or torch.any(shape < 5):
+                continue
+
             del schem
 
             coord2byte, palette = _initFromFile(file)
@@ -141,37 +146,35 @@ def parse_schematics(
                 (width, height, length), dtype=torch.int16
             )  # x, y, z
 
-            block_grid_tensor, borders = remove_air_padding(block_grid_tensor)
-            min_x, max_x, min_y, max_y, min_z, max_z = borders
-
             attributes = {}
 
             for x, y, z in coord2byte:
                 # check if coords are within the borders
-                if (
-                    (min_x <= x <= max_x)
-                    and (min_y <= y <= max_y)
-                    and (min_z <= z <= max_z)
-                ):
-                    block_byte = coord2byte[(x, y, z)]
-                    block = palette[block_byte]
+                block_byte = coord2byte[(x, y, z)]
+                block = palette[block_byte]
 
-                    block, attr_dict = parse_block(block)  # str, dict
-                    block, block_idx, _ = block_to_idx(block, block2idx)  # str, int
-                    if block == AIR:
-                        attr_dict = {}
+                block, attr_dict = parse_block(block)  # str, dict
+                block, block_idx, _ = block_to_idx(block, block2idx)  # str, int
+                if block == AIR:
+                    attr_dict = {}
 
-                    attr_dict = filter_attribute_dict(
-                        block=block,
-                        attr_dict=attr_dict,
-                        attributes_defaults=attributes_defaults,
-                        block_attributes_defaults=block_attributes_defaults,
-                        filtered_blocks_dict=filtered_blocks_dict,
-                    )
+                attr_dict = filter_attribute_dict(
+                    block=block,
+                    attr_dict=attr_dict,
+                    attributes_defaults=attributes_defaults,
+                    block_attributes_defaults=block_attributes_defaults,
+                    filtered_blocks_dict=filtered_blocks_dict,
+                )
 
-                    block_grid_tensor[x - min_x][y - min_y][z - min_z] = block_idx
-                    if len(attr_dict):
-                        attributes[(x - min_x, y - min_y, z - min_z)] = attr_dict
+                block_grid_tensor[x][y][z] = block_idx
+                if len(attr_dict):
+                    attributes[(x, y, z)] = attr_dict
+
+            if (block_grid_tensor != AIR_BLOCK_IDX).sum() == 0:
+                continue
+
+            block_grid_tensor, borders = remove_air_padding(block_grid_tensor)
+            min_x, _, min_y, _, min_z, _ = borders
 
             # create masks and attr vectors for each attr-value pair
             attributes_data = dict()
@@ -182,7 +185,7 @@ def parse_schematics(
 
                 attribute_values = []
                 for x, y, z in idxs:
-                    xyz_key = (x.item(), y.item(), z.item())
+                    xyz_key = (x.item() + min_x, y.item() + min_y, z.item() + min_z)
                     if (
                         attr not in attributes[xyz_key]
                     ):  # if attribute we predict does not exist in this block make it default 0

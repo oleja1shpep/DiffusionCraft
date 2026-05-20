@@ -77,7 +77,7 @@ class Trainer(BaseTrainer):
                 batch.update(all_losses)
 
                 loss = batch["loss"].detach().item()
-                if self.config.trainer.get("debug", False) and current_step > 4950:
+                if self.config.trainer.get("debug", False) and current_step > 4960:
                     print("loss:", loss)
                     if loss > 1:
                         self.logger.debug(
@@ -95,7 +95,7 @@ class Trainer(BaseTrainer):
                 if self.lr_scheduler is not None:
                     self.lr_scheduler.step()
                 grad_norm = self._get_grad_norm()
-                if self.config.trainer.get("debug", False) and current_step > 4950:
+                if self.config.trainer.get("debug", False) and current_step > 4960:
                     param_norm = self._get_param_norm()
                     print("lr", self.lr_scheduler.get_last_lr()[0])
                     print("grad norm:", grad_norm)
@@ -107,13 +107,14 @@ class Trainer(BaseTrainer):
                         "Latents logvar abs min:",
                         batch["latents"].logvar.abs().min().item(),
                     )
+                    opt_stats = self.get_aggregated_optimizer_stats()
+                    print("Optimizer stats:", opt_stats)
 
                     if grad_norm > 1:
                         self.logger.debug(
                             f"Step: {current_step} | HIGH GRAD NORM: {grad_norm} | Batch Indexes: {batch['idxs']}"
                         )
-                        print(opt_stats)
-                        opt_stats = self.get_aggregated_optimizer_stats()
+
                         import pdb
 
                         pdb.set_trace()

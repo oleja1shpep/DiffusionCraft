@@ -471,36 +471,29 @@ def parse_schem(path: str, block_data_dir="src/block_data"):
             (width, height, length), dtype=torch.int64
         )  # x, y, z
 
-        block_grid_tensor, borders = remove_air_padding(block_grid_tensor)
-        min_x, max_x, min_y, max_y, min_z, max_z = borders
-
         attributes = {}
 
         for x, y, z in coord2byte:
-            if (
-                (min_x <= x <= max_x)
-                and (min_y <= y <= max_y)
-                and (min_z <= z <= max_z)
-            ):
-                block_byte = coord2byte[(x, y, z)]
-                block = palette[block_byte]
+            block_byte = coord2byte[(x, y, z)]
+            block = palette[block_byte]
 
-                block, attr_dict = parse_block(block)  # str, dict
-                block, block_idx, _ = block_to_idx(block, block2idx)  # str, int
-                if block == AIR:
-                    attr_dict = {}
+            block, attr_dict = parse_block(block)  # str, dict
+            block, block_idx, _ = block_to_idx(block, block2idx)  # str, int
+            if block == AIR:
+                attr_dict = {}
 
-                attr_dict = filter_attribute_dict(
-                    block=block,
-                    attr_dict=attr_dict,
-                    attributes_defaults=attributes_defaults,
-                    block_attributes_defaults=block_attributes_defaults,
-                    filtered_blocks_dict=filtered_blocks_dict,
-                )
+            attr_dict = filter_attribute_dict(
+                block=block,
+                attr_dict=attr_dict,
+                attributes_defaults=attributes_defaults,
+                block_attributes_defaults=block_attributes_defaults,
+                filtered_blocks_dict=filtered_blocks_dict,
+            )
 
-                block_grid_tensor[x - min_x][y - min_y][z - min_z] = block_idx
-                if len(attr_dict):
-                    attributes[(x - min_x, y - min_y, z - min_z)] = attr_dict
+            block_grid_tensor[x][y][z] = block_idx
+            if len(attr_dict):
+                attributes[(x, y, z)] = attr_dict
+
         # create masks and attr vectors for each attr-value pair
         attributes_data = dict()
         for attr, values in non_default_attribute_pairs:

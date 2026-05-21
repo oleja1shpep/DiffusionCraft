@@ -22,23 +22,19 @@ class AP(BaseMetric):
             device (str): device for the metric calculation (and tensors).
         """
         self.air_only = air_only
-        self.ap = defaultdict(lambda: dict(target=[], logits=[]))
+        self.ap = defaultdict(list)
         self.old_ap = []
         super().__init__(*args, **kwargs)
         self.reset()
 
     def reset(self):
-        self.ap = defaultdict(lambda: dict(target=[], logits=[]))
+        self.ap = defaultdict(list)
         self.old_ap = []
 
     def result(self):
         aps = []
-        for item in self.ap.values():
-            logits = np.concatenate(item["logits"])
-            target = np.concatenate(item["target"])
-            if target.sum() != 0:
-                precision, recall, _ = precision_recall_curve(target, logits)
-                aps.append(auc(recall, precision))
+        for values in self.ap.values():
+            aps.append(np.mean(values))
         result = {self.name: np.mean(aps) if len(aps) else np.nan}
 
         if not self.air_only:
@@ -70,16 +66,14 @@ class AP(BaseMetric):
                 target = (
                     (block_type_grid[b] == c).flatten().cpu().numpy().astype(np.int32)
                 )
-
                 logits = (
                     block_type_logits[b, :, :, :, c].detach().flatten().cpu().numpy()
                 )
-                self.ap[c]["target"].append(target)
-                self.ap[c]["logits"].append(logits)
                 if target.sum() != 0:
+                    precision, recall, _ = precision_recall_curve(target, logits)
+                    aucpr = auc(recall, precision)
+                    self.ap[c].append(aucpr)
                     if c != AIR_BLOCK_IDX:
-                        precision, recall, _ = precision_recall_curve(target, logits)
-                        aucpr = auc(recall, precision)
                         AP_old += aucpr
                         present_classes += 1
             if present_classes:

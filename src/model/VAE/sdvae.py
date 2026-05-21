@@ -66,9 +66,12 @@ class SDVAE(nn.Module):
         z = self.post_quant_conv(z)  # (B, W, H, L, z_dim)
         return self.decoder(z, **batch)
 
-    def forward(self, **batch):
+    def forward(self, sample_posterior=True, **batch):
         posterior, gt_features = self.encode(**batch)  # (B, 2 * z_dim, w, h, l)
-        z = posterior.mode()
+        if sample_posterior:
+            z = posterior.sample()
+        else:
+            z = posterior.mode()
         (
             block_type_logits,
             pred_block_type_grid,

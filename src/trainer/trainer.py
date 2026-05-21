@@ -70,16 +70,16 @@ class Trainer(BaseTrainer):
 
         if self.is_train:
             with self.accelerator.accumulate(self.model):
-                outputs = self.model(**batch)
+                outputs = self.model(**batch, sample_posterior=self.is_train)
                 batch.update(outputs)
 
                 all_losses = self.criterion(**batch)
                 batch.update(all_losses)
 
                 loss = batch["loss"].detach().item()
-                if self.config.trainer.get("debug", False) and current_step > 4960:
+                if self.config.trainer.get("debug", False) and current_step > 2168:
                     print("loss:", loss)
-                    if loss > 1:
+                    if loss > 0.1:
                         self.logger.debug(
                             f"Step: {current_step} | HIGH LOSS: {loss} | Batch Indexes: {batch['idxs']}"
                         )
@@ -95,22 +95,29 @@ class Trainer(BaseTrainer):
                 if self.lr_scheduler is not None:
                     self.lr_scheduler.step()
                 grad_norm = self._get_grad_norm()
-                if self.config.trainer.get("debug", False) and current_step > 4960:
+                if self.config.trainer.get("debug", False) and current_step > 2168:
                     param_norm = self._get_param_norm()
                     print("lr", self.lr_scheduler.get_last_lr()[0])
                     print("grad norm:", grad_norm)
                     print("weight norm:", param_norm)
-                    print("Latents mean:", batch["latents"].mean.abs().max().item())
-                    print("Latents logvar max:", batch["latents"].logvar.max().item())
-                    print("Latents logvar min:", batch["latents"].logvar.min().item())
-                    print(
-                        "Latents logvar abs min:",
-                        batch["latents"].logvar.abs().min().item(),
-                    )
+
+                    print("Latents-mu:")
+                    print(f"\tmax:{batch['latents'].mean.max().item()}")
+                    print(f"\tmin:{batch['latents'].mean.min().item()}")
+                    print(f"\tmean:{batch['latents'].mean.mean().item()}")
+                    print("Latents-logvar:")
+                    print(f"\tmax:{batch['latents'].logvar.max().item()}")
+                    print(f"\tmin:{batch['latents'].logvar.min().item()}")
+                    print(f"\tmean:{batch['latents'].logvar.mean().item()}")
+
+                    print("Logits:")
+                    print(f"\tmax:{batch['block_type_logits'].max().item()}")
+                    print(f"\tmin:{batch['block_type_logits'].min().item()}")
+                    print(f"\tmean:{batch['block_type_logits'].mean().item()}")
                     opt_stats = self.get_aggregated_optimizer_stats()
                     print("Optimizer stats:", opt_stats)
 
-                    if grad_norm > 1:
+                    if grad_norm > 0.13:
                         self.logger.debug(
                             f"Step: {current_step} | HIGH GRAD NORM: {grad_norm} | Batch Indexes: {batch['idxs']}"
                         )
@@ -121,7 +128,7 @@ class Trainer(BaseTrainer):
                 tracker.update("grad_norm", grad_norm)
                 self.optimizer.zero_grad()
         else:
-            outputs = self.model(**batch)
+            outputs = self.model(**batch, sample_posterior=self.is_train)
             batch.update(outputs)
 
             all_losses = self.criterion(**batch)

@@ -109,7 +109,7 @@ def main(config):
             batch = move_batch_to_device(batch, config.device_tensors, device)
 
             with torch.no_grad():
-                outputs = model(**batch)
+                outputs = model(**batch, sample_posterior=False)
 
             pred_attributes_data = gather_attributes_data(
                 outputs["pred_attribures_masks"], outputs["attributes_logits"]

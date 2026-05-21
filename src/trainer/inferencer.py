@@ -119,7 +119,7 @@ class Inferencer(BaseTrainer):
         batch = self.move_batch_to_device(batch)
         batch = self.transform_batch(batch)  # transform batch on device -- faster
 
-        outputs = self.model(**batch)
+        outputs = self.model(**batch, sample_posterior=False)
         batch.update(outputs)
 
         if tracker is not None:

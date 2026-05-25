@@ -531,6 +531,81 @@ class BaseTrainer:
         )
         return total_norm.item()
 
+    def get_parameter_stats(self):
+        """
+        Возвращает словарь со статистиками параметров модели.
+
+        Возвращает:
+            dict: {
+                'weight': {
+                    'min': float or None,
+                    'min_abs': float or None,
+                    'max': float or None,
+                    'mean': float or None,
+                    'norm': float or None
+                },
+                'bias': { ... }
+            }
+            Значения None, если параметров данного типа в модели нет.
+        """
+        # Инициализация аккумуляторов для весов и смещений
+        w_stats = {
+            "min": float("inf"),
+            "min_abs": float("inf"),
+            "max": -float("inf"),
+            "sum": 0.0,
+            "sum_sq": 0.0,
+            "count": 0,
+        }
+        b_stats = {
+            "min": float("inf"),
+            "min_abs": float("inf"),
+            "max": -float("inf"),
+            "sum": 0.0,
+            "sum_sq": 0.0,
+            "count": 0,
+        }
+
+        with torch.no_grad():
+            for name, param in self.model.named_parameters():
+                # Определяем, является ли параметр весом или смещением по окончанию имени
+                if name.endswith(".weight") or name == "weight":
+                    stats = w_stats
+                elif name.endswith(".bias") or name == "bias":
+                    stats = b_stats
+                else:
+                    continue  # пропускаем, например, running_mean и running_var у BatchNorm
+
+                t = param.data
+                # Обновляем минимум/максимум с учётом текущего тензора
+                cur_min = t.min().item()
+                if cur_min < stats["min"]:
+                    stats["min"] = cur_min
+                cur_max = t.max().item()
+                if cur_max > stats["max"]:
+                    stats["max"] = cur_max
+                cur_min_abs = t.abs().min().item()
+                if cur_min_abs < stats["min_abs"]:
+                    stats["min_abs"] = cur_min_abs
+                # Сумма, сумма квадратов и количество элементов
+                stats["sum"] += t.sum().item()
+                stats["sum_sq"] += (t**2).sum().item()
+                stats["count"] += t.numel()
+
+        def finalize(stats):
+            """Преобразует накопленные значения в итоговый словарь."""
+            if stats["count"] == 0:
+                return {k: None for k in ("min", "min_abs", "max", "mean", "norm")}
+            return {
+                "min": stats["min"],
+                "min_abs": stats["min_abs"],
+                "max": stats["max"],
+                "mean": stats["sum"] / stats["count"],
+                "norm": stats["sum_sq"] ** 0.5,
+            }
+
+        return {"weight": finalize(w_stats), "bias": finalize(b_stats)}
+
     def get_optimizer_statistics(self):
         """
         Возвращает словарь с накопленными статистиками оптимизатора.

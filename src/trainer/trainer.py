@@ -68,6 +68,9 @@ class Trainer(BaseTrainer):
 
         current_step = (epoch - 1) * self.epoch_len + step
 
+        parameter_stats = None
+        opt_stats = None
+
         if self.is_train:
             with self.accelerator.accumulate(self.model):
                 outputs = self.model(**batch, sample_posterior=self.is_train)
@@ -77,9 +80,9 @@ class Trainer(BaseTrainer):
                 batch.update(all_losses)
 
                 loss = batch["loss"].detach().item()
-                if self.config.trainer.get("debug", False) and current_step > 2168:
+                if self.config.trainer.get("debug", False) and current_step > 610:
                     print("loss:", loss)
-                    if loss > 0.1:
+                    if loss > 1e100:
                         self.logger.debug(
                             f"Step: {current_step} | HIGH LOSS: {loss} | Batch Indexes: {batch['idxs']}"
                         )
@@ -95,11 +98,17 @@ class Trainer(BaseTrainer):
                 if self.lr_scheduler is not None:
                     self.lr_scheduler.step()
                 grad_norm = self._get_grad_norm()
-                if self.config.trainer.get("debug", False) and current_step > 2168:
-                    param_norm = self._get_param_norm()
+
+                parameter_stats = self.get_parameter_stats()
+                opt_stats = self.get_aggregated_optimizer_stats()
+
+                if self.config.trainer.get("debug", False) and current_step > 610:
                     print("lr", self.lr_scheduler.get_last_lr()[0])
                     print("grad norm:", grad_norm)
-                    print("weight norm:", param_norm)
+
+                    print("Parameter stats:")
+                    print("Weight:", *parameter_stats["weight"].items(), sep="\n\t")
+                    print("Bias:", *parameter_stats["bias"].items(), sep="\n\t")
 
                     print("Latents-mu:")
                     print(f"\tmax:{batch['latents'].mean.max().item()}")
@@ -114,10 +123,9 @@ class Trainer(BaseTrainer):
                     print(f"\tmax:{batch['block_type_logits'].max().item()}")
                     print(f"\tmin:{batch['block_type_logits'].min().item()}")
                     print(f"\tmean:{batch['block_type_logits'].mean().item()}")
-                    opt_stats = self.get_aggregated_optimizer_stats()
                     print("Optimizer stats:", opt_stats)
 
-                    if grad_norm > 0.13:
+                    if grad_norm > 7:
                         self.logger.debug(
                             f"Step: {current_step} | HIGH GRAD NORM: {grad_norm} | Batch Indexes: {batch['idxs']}"
                         )
@@ -142,7 +150,9 @@ class Trainer(BaseTrainer):
 
         if tracker is not None:
             for met in tracker.metrics:
-                value = met(**batch)  # calculate metrics
+                value = met(
+                    **batch, parameter_stats=parameter_stats, opt_stats=opt_stats
+                )  # calculate metrics
                 if met.name == "MaxMemoryAllocated":
                     if value > 55:
                         self.logger.debug(

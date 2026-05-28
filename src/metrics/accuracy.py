@@ -4,6 +4,7 @@ import numpy as np
 import torch
 
 from src.metrics.base_metric import BaseMetric
+from src.utils.io_utils import ROOT_PATH, read_json
 from src.utils.model_utils import AIR_BLOCK_IDX
 
 
@@ -51,7 +52,14 @@ class BlockTypeAccuracy(BaseMetric):
 
 
 class MacroRecall(BaseMetric):
-    def __init__(self, *args, **kwargs):
+    def __init__(
+        self,
+        filter_rare_classes=False,
+        block_data_path="./src/block_data",
+        val_stats_file="statistics_val.json",
+        *args,
+        **kwargs
+    ):
         """
         Macro Recall (Accuracy) among blocks
 
@@ -59,6 +67,17 @@ class MacroRecall(BaseMetric):
             metric (Callable): function to calculate metrics.
             device (str): device for the metric calculation (and tensors).
         """
+        self.block2idx = read_json(ROOT_PATH / block_data_path / "block2idx.json")
+        self.allowed_classes = list(range(len(self.block2idx)))
+
+        if filter_rare_classes:
+            self.val_stats = read_json(ROOT_PATH / block_data_path / val_stats_file)
+            self.allowed_classes = [
+                self.block2idx[block]
+                for block in self.val_stats
+                if self.val_stats[block] >= 30
+            ]
+
         self.accuracy = defaultdict(list)
         self.old_accruracy = []
         super().__init__(*args, **kwargs)
@@ -98,7 +117,6 @@ class MacroRecall(BaseMetric):
             metric (float): calculated metric.
         """
         B = block_type_logits.shape[0]
-        num_classes = block_type_logits.shape[-1]
 
         results = []
         for b in range(B):
@@ -108,7 +126,7 @@ class MacroRecall(BaseMetric):
             target = block_type_grid[b]
             pred = pred_block_type_grid[b]
 
-            for c in range(num_classes):
+            for c in self.allowed_classes:
                 class_mask = target == c
                 class_count = class_mask.sum().item()
                 if class_count != 0:

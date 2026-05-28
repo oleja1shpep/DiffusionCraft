@@ -5,11 +5,20 @@ import torch
 from sklearn.metrics import auc, precision_recall_curve
 
 from src.metrics.base_metric import BaseMetric
+from src.utils.io_utils import ROOT_PATH, read_json
 from src.utils.model_utils import AIR_BLOCK_IDX
 
 
 class AP(BaseMetric):
-    def __init__(self, air_only=True, *args, **kwargs):
+    def __init__(
+        self,
+        air_only=True,
+        filter_rare_classes=False,
+        block_data_path="./src/block_data",
+        val_stats_file="statistics_val.json",
+        *args,
+        **kwargs
+    ):
         """
         Example of a nested metric class. Applies metric function
         object (for example, from TorchMetrics) on tensors.
@@ -22,6 +31,18 @@ class AP(BaseMetric):
             device (str): device for the metric calculation (and tensors).
         """
         self.air_only = air_only
+
+        self.block2idx = read_json(ROOT_PATH / block_data_path / "block2idx.json")
+        self.allowed_classes = list(range(len(self.block2idx)))
+
+        if filter_rare_classes:
+            self.val_stats = read_json(ROOT_PATH / block_data_path / val_stats_file)
+            self.allowed_classes = [
+                self.block2idx[block]
+                for block in self.val_stats
+                if self.val_stats[block] >= 30
+            ]
+
         self.ap = defaultdict(list)
         self.old_ap = []
         super().__init__(*args, **kwargs)
@@ -53,10 +74,9 @@ class AP(BaseMetric):
         Returns:
             metric (Tensor): calculated metric.
         """
-        num_classes = block_type_logits.shape[-1]
         B = len(block_type_grid)
 
-        allowed_classes = [AIR_BLOCK_IDX] if self.air_only else list(range(num_classes))
+        allowed_classes = [AIR_BLOCK_IDX] if self.air_only else self.allowed_classes
 
         results = []
         for b in range(B):

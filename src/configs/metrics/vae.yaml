@@ -17,11 +17,13 @@ inference:
     name: "BlockTypeAccuracy"
   - _target_: src.metrics.MacroRecall
     name: "MacroRecall"
+    filter_rare_classes: True
   - _target_: src.metrics.AP
     name: "AirAP"
   - _target_: src.metrics.AP
     name: "mAP_new"
     air_only: False
+    filter_rare_classes: True
   - _target_: src.metrics.AttributeAccuracy
     name: "MatchedAttrAccuracy"
   - _target_: src.metrics.AttributeAccuracy

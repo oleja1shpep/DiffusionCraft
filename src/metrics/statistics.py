@@ -30,7 +30,7 @@ class ParameterStatistics(BaseMetric):
         Metric calculation logic.
 
         Args:
-            parameter_stats (Tensor): dict with statistics
+            parameter_stats (Dict): dict with statistics
         Returns:
             metric (float): calculated metric.
         """
@@ -66,7 +66,7 @@ class OptimizerStatistics(BaseMetric):
         Metric calculation logic.
 
         Args:
-            opt_stats (Tensor): dict with statistics
+            opt_stats (Dict): dict with statistics
         Returns:
             metric (float): calculated metric.
         """
@@ -100,7 +100,7 @@ class LatentsStatistics(BaseMetric):
         Metric calculation logic.
 
         Args:
-            parameter_stats (Tensor): dict with statistics
+            latents (DiagonalGaussianDistribution): latents
         Returns:
             metric (float): calculated metric.
         """
@@ -141,7 +141,7 @@ class BlockLogitsStatistics(BaseMetric):
         Metric calculation logic.
 
         Args:
-            parameter_stats (Tensor): dict with statistics
+            block_type_logits (Tensor): logits of blocks
         Returns:
             metric (float): calculated metric.
         """
@@ -149,3 +149,38 @@ class BlockLogitsStatistics(BaseMetric):
         self.stats["min"].append(block_type_logits.min().item())
         self.stats["max"].append(block_type_logits.max().item())
         self.stats["mean"].append(block_type_logits.mean().item())
+
+
+class ActivationStatisitcs(BaseMetric):
+    def __init__(self, *args, **kwargs):
+        self.stats = defaultdict(list)
+        super().__init__(*args, **kwargs)
+
+    def reset(self):
+        self.stats = defaultdict(list)
+
+    def result(self):
+        result = dict()
+        for key in self.stats:
+            if "max" in key:
+                result[f"{self.name}_{key}"] = np.max(self.stats[key])
+            elif "min" in key:
+                result[f"{self.name}_{key}"] = np.min(self.stats[key])
+            else:
+                result[f"{self.name}_{key}"] = np.mean(self.stats[key])
+        return result
+
+    def __call__(self, layer_stats, **batch):
+        """
+        Metric calculation logic.
+
+        Args:
+            layer_stats (Dict): dict with statistics
+        Returns:
+            metric (float): calculated metric.
+        """
+
+        for layer_name in layer_stats:
+            for key in layer_stats[layer_name]:
+                # change if need to log for every layer separately
+                self.stats[f"{key}"].append(layer_stats[layer_name][key])

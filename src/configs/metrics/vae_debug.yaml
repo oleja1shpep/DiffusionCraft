@@ -11,6 +11,16 @@ train:
     block_equality: False
   - _target_: src.metrics.MaxMemoryAllocated
     name: MaxMemoryAllocated
+  - _target_: src.metrics.ParameterStatistics
+    name: Parameter
+  - _target_: src.metrics.OptimizerStatistics
+    name: Optimizer
+  - _target_: src.metrics.LatentsStatistics
+    name: Latents
+  - _target_: src.metrics.BlockLogitsStatistics
+    name: BlockLogits
+  - _target_: src.metrics.ActivationStatisitcs
+    name: Activations
 
 inference:
   - _target_: src.metrics.BlockTypeAccuracy

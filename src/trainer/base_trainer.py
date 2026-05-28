@@ -1,5 +1,6 @@
 import pickle
 from abc import abstractmethod
+from contextlib import contextmanager
 from pathlib import Path
 
 import torch
@@ -678,6 +679,62 @@ class BaseTrainer:
                 "l2_norm": all_vals.norm().item(),
             }
         return result
+
+    @contextmanager
+    def activation_stats(self, skip_containers=True):
+        """
+        Контекстный менеджер для сбора статистик активаций.
+
+        Параметры:
+            model: nn.Module
+            skip_containers: регистрировать хуки только на модули без детей (листья).
+                            По умолчанию True – исключает Sequential, ModuleList и т.п.
+        Возвращает:
+            словарь stats, заполняемый после каждого прямого прохода.
+        """
+        stats = {}
+        hooks = []
+
+        def extract_tensor(output):
+            """Пытается извлечь тензор из выхода модуля. Возвращает тензор или None."""
+            if isinstance(output, torch.Tensor):
+                return output
+            if isinstance(output, (tuple, list)):
+                for item in output:
+                    if isinstance(item, torch.Tensor):
+                        return item  # первый найденный тензор
+            if isinstance(output, dict):
+                for v in output.values():
+                    if isinstance(v, torch.Tensor):
+                        return v
+            return None  # нет тензора – пропускаем слой
+
+        def make_hook(name):
+            def hook(module, input, output):
+                tensor = extract_tensor(output)
+                if tensor is None or tensor.numel() == 0:
+                    return  # слой не выдаёт тензорных активаций
+                t = tensor.detach()
+                stats[name] = {
+                    "mean": t.mean().item(),
+                    "min": t.min().item(),
+                    "max": t.max().item(),
+                }
+
+            return hook
+
+        # Регистрируем хуки на нужных модулях
+        for name, module in self.model.named_modules():
+            if skip_containers and len(list(module.children())) > 0:
+                continue  # пропускаем контейнеры
+            handle = module.register_forward_hook(make_hook(name))
+            hooks.append(handle)
+
+        try:
+            yield stats
+        finally:
+            for h in hooks:
+                h.remove()
 
     def _progress(self, batch_idx):
         """

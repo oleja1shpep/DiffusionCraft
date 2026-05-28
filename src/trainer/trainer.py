@@ -70,13 +70,15 @@ class Trainer(BaseTrainer):
 
         parameter_stats = None
         opt_stats = None
+        layer_stats = None
 
         if self.is_train:
             with self.accelerator.accumulate(self.model):
-                outputs = self.model(**batch, sample_posterior=self.is_train)
-                batch.update(outputs)
+                with self.activation_stats() as layer_stats:
+                    outputs = self.model(**batch, sample_posterior=self.is_train)
+                    batch.update(outputs)
 
-                all_losses = self.criterion(**batch)
+                    all_losses = self.criterion(**batch)
                 batch.update(all_losses)
 
                 loss = batch["loss"].detach().item()
@@ -151,7 +153,10 @@ class Trainer(BaseTrainer):
         if tracker is not None:
             for met in tracker.metrics:
                 value = met(
-                    **batch, parameter_stats=parameter_stats, opt_stats=opt_stats
+                    **batch,
+                    parameter_stats=parameter_stats,
+                    opt_stats=opt_stats,
+                    layer_stats=layer_stats,
                 )  # calculate metrics
                 if met.name == "MaxMemoryAllocated":
                     if value > 55:

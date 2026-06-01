@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import torch
+from accelerate import Accelerator
 from numpy import inf
 from torch.nn.utils import clip_grad_norm_
 from torch.profiler import ProfilerActivity, profile
@@ -66,7 +67,7 @@ class BaseTrainer:
         self.config = config
         self.cfg_trainer = self.config.trainer
 
-        self.accelerator = accelerator
+        self.accelerator: Accelerator = accelerator
 
         self.device = device
         self.skip_oom = skip_oom

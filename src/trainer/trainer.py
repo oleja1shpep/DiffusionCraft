@@ -95,15 +95,13 @@ class Trainer(BaseTrainer):
                         pdb.set_trace()
 
                 self.accelerator.backward(batch["loss"])  # division on accum steps
-                if self.accelerator.sync_gradients:
-                    self._clip_grad_norm()
-                    self.optimizer.step()
-                    if self.lr_scheduler is not None:
-                        self.lr_scheduler.step()
-
                 grad_norm = self._get_grad_norm()
-                if self.accelerator.sync_gradients:
-                    self.optimizer.zero_grad()
+
+                self._clip_grad_norm()
+                self.optimizer.step()
+                if self.lr_scheduler is not None:
+                    self.lr_scheduler.step()
+                self.optimizer.zero_grad()
 
                 parameter_stats = self.get_parameter_stats()
                 opt_stats = self.get_aggregated_optimizer_stats()
@@ -139,7 +137,12 @@ class Trainer(BaseTrainer):
                         import pdb
 
                         pdb.set_trace()
-                tracker.update("grad_norm", grad_norm)
+                if self.accelerator.sync_gradients:
+                    tracker.update(
+                        "grad_norm",
+                        grad_norm,
+                        self.accelerator.gradient_accumulation_steps,
+                    )
         else:
             outputs = self.model(**batch, sample_posterior=self.is_train)
             batch.update(outputs)

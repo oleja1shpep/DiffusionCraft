@@ -184,3 +184,7 @@ class ActivationStatisitcs(BaseMetric):
             for key in layer_stats[layer_name]:
                 # change if need to log for every layer separately
                 self.stats[f"{key}"].append(layer_stats[layer_name][key])
+                if "encoder" in layer_name:
+                    self.stats[f"encoder_{key}"].append(layer_stats[layer_name][key])
+                elif "decoder" in layer_name:
+                    self.stats[f"decoder_{key}"].append(layer_stats[layer_name][key])

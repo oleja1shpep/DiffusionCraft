@@ -5,3 +5,4 @@ num_layers: 3 # f8
 num_res_blocks: 2
 attn_layers: []
 use_pred_masks: False
+posterior_mode: null

@@ -13,6 +13,7 @@ class SDVAE(nn.Module):
         num_res_blocks=2,
         attn_layers=[],
         use_pred_masks=False,
+        posterior_mode=None,
     ):
         """
         Args:
@@ -22,8 +23,10 @@ class SDVAE(nn.Module):
             num_res_blocks (Int) : number of ResnetBlocks in downsampling.
             attn_layers (List) : idxs of layers with Attention
             use_pred_masks (bool) : whether to calc masks on pred_block_grid
+            posterior_mode (str) : 'sample' or 'mode'. Overrides sample_posterior arguement if forward
         """
         super().__init__()
+        self.posterior_mode = posterior_mode
 
         self.encoder = Encoder(
             channels, num_layers, z_channels, num_res_blocks, attn_layers
@@ -68,10 +71,18 @@ class SDVAE(nn.Module):
 
     def forward(self, sample_posterior=True, **batch):
         posterior, gt_features = self.encode(**batch)  # (B, 2 * z_dim, w, h, l)
-        if sample_posterior:
-            z = posterior.sample()
+        if self.posterior_mode is None:
+            if sample_posterior:
+                z = posterior.sample()
+            else:
+                z = posterior.mode()
         else:
-            z = posterior.mode()
+            if self.posterior_mode == "sample":
+                z = posterior.sample()
+            elif self.posterior_mode == "mode":
+                z = posterior.mode()
+            else:
+                raise RuntimeError(f"No such mode for posterior: {self.posterior_mode}")
         (
             block_type_logits,
             pred_block_type_grid,

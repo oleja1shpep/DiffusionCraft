@@ -1,0 +1,16 @@
+train:
+  _target_: src.datasets.VAEDataset
+  name: "train"
+  mode: "mix"
+  web_factor: 2
+sub_train:
+  _target_: src.datasets.VAEDataset
+  name: "sub_train"
+  mode: "web"
+val:
+  _target_: src.datasets.VAEDataset
+  name: "val"
+  mode: "web"
+viz:
+  _target_: src.datasets.VAEDataset
+  name: "viz"

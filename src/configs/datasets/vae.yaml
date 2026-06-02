@@ -1,6 +1,8 @@
 train:
   _target_: src.datasets.VAEDataset
   name: "train"
+  mode: "synth"
+  web_factor: 0
 sub_train:
   _target_: src.datasets.VAEDataset
   name: "sub_train"

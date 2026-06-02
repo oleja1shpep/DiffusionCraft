@@ -2,6 +2,7 @@ from itertools import repeat
 
 from hydra.utils import instantiate
 
+from src.datasets import VAESampler
 from src.datasets.collate import collate_fn
 from src.utils.init_utils import set_worker_seed
 
@@ -80,8 +81,10 @@ def get_dataloaders(config, device):
             dataset=dataset,
             collate_fn=lambda x: collate_fn(x, config.model.num_layers),
             drop_last=(dataset_partition == "train"),
-            shuffle=(dataset_partition == "train")
-            and not (config.trainer.get("debug", False)),
+            sampler=VAESampler(dataset=dataset)
+            if (dataset_partition == "train")
+            and not (config.trainer.get("debug", False))
+            else None,
             worker_init_fn=set_worker_seed,
         )
         dataloaders[dataset_partition] = partition_dataloader

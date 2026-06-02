@@ -23,28 +23,36 @@ class BaseDataset(Dataset):
 
     def __init__(
         self,
-        index,
+        indexes,
         limit=None,
+        web_limit=None,
         shuffle_index=False,
         instance_transforms=None,
     ):
         """
         Args:
-            index (list[dict]): list, containing dict for each element of
+            indexes (dict[str, list[dict]]): dict of lists, containing dict for each element of
                 the dataset. The dict has required metadata information,
                 such as label and object path.
             limit (int | None): if not None, limit the total number of elements
                 in the dataset to 'limit' elements.
+            web_limit (int | None): if not None, limit the total number of elements
+                in the web dataset to 'limit' elements.
             shuffle_index (bool): if True, shuffle the index. Uses python
                 random package with seed 42.
             instance_transforms (dict[Callable] | None): transforms that
                 should be applied on the instance. Depend on the
                 tensor name.
         """
+        index = indexes.get("synth", [])
+        web_index = indexes.get("web", [])
         self._assert_index_is_valid(index)
+        self._assert_index_is_valid(web_index)
 
         index = self._shuffle_and_limit_index(index, limit, shuffle_index)
+        web_index = self._shuffle_and_limit_index(web_index, web_limit, shuffle_index)
         self._index: list[dict] = index
+        self._web_index: list[dict] = web_index
 
         self.instance_transforms = instance_transforms
 
@@ -63,7 +71,11 @@ class BaseDataset(Dataset):
             instance_data (dict): dict, containing instance
                 (a single dataset element).
         """
-        data_dict = self._index[ind]
+        data_dict = (
+            self._index[ind]
+            if ind < len(self._index)
+            else self._web_index[ind - len(self._index)]
+        )
         structire_path = Path(data_dict["structire_path"])
 
         block_type_path = structire_path / f"{BLOCK_TYPE}.pt"
@@ -100,7 +112,7 @@ class BaseDataset(Dataset):
         """
         Get length of the dataset (length of the index).
         """
-        return len(self._index)
+        return len(self._index) + len(self._web_index)
 
     def preprocess_data(self, instance_data):
         """

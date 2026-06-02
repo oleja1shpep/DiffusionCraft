@@ -155,6 +155,8 @@ class Encoder(nn.Module):
         self.block_type_encoder = BlockTypeEncoder(channels, block_data_path)
         self.attribute_encoder = AttributeEncoder(channels, block_data_path)
 
+        self.pre_norm = Normalize(channels)
+
         self.num_layers = num_layers
         self.channels = channels
         self.z_channels = z_channels
@@ -217,6 +219,8 @@ class Encoder(nn.Module):
 
         h = features.permute(0, 4, 1, 2, 3)  # (B, D, W, H, L)
 
+        h = self.pre_norm(h)
+
         # downsampling
         for i_level in range(self.num_layers):
             for i_block in range(self.num_res_blocks):
@@ -273,6 +277,8 @@ class DCEncoder(Encoder):
         )  # (B, W, H, L, D)
 
         h = features.permute(0, 4, 1, 2, 3)  # (B, D, W, H, L)
+
+        h = self.pre_norm(h)
 
         # downsampling
         for i_level in range(self.num_layers):

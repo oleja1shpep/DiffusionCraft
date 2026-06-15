@@ -61,11 +61,20 @@ class AttnBlock(nn.Module):
 
 
 class ResnetBlock3D(nn.Module):
-    def __init__(self, *, in_channels, out_channels, conv_shortcut=False, dropout=0):
+    def __init__(
+        self,
+        *,
+        in_channels,
+        out_channels,
+        conv_shortcut=False,
+        dropout=0,
+        post_norm_layer=True
+    ):
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.use_conv_shortcut = conv_shortcut
+        self.post_norm_layer = post_norm_layer
 
         self.norm1 = Normalize(in_channels)
         self.conv1 = torch.nn.Conv3d(
@@ -81,7 +90,8 @@ class ResnetBlock3D(nn.Module):
             self.nin_shortcut = torch.nn.Conv3d(
                 in_channels, out_channels, kernel_size=1, stride=1, padding=0
             )
-        self.norm3 = Normalize(out_channels)
+        if self.post_norm_layer:
+            self.norm3 = Normalize(out_channels)
 
     def forward(self, x: torch.Tensor):
         h = self.norm1(x)
@@ -95,4 +105,4 @@ class ResnetBlock3D(nn.Module):
 
         if self.in_channels != self.out_channels:
             x = self.nin_shortcut(x)
-        return self.norm3(x + h)
+        return self.norm3(x + h) if self.post_norm_layer else x + h

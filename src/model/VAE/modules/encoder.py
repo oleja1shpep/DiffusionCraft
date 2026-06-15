@@ -139,6 +139,7 @@ class Encoder(nn.Module):
         num_res_blocks=2,
         attn_layers=[],
         block_data_path="src/block_data",
+        additional_norm_layers=True,
     ):
         """
         The class for DownSampling Block Grid into latents
@@ -152,10 +153,13 @@ class Encoder(nn.Module):
             block_data_path (str): path to the directory with block jsons.
         """
         super().__init__()
+        self.additional_norm_layers = additional_norm_layers
+
         self.block_type_encoder = BlockTypeEncoder(channels, block_data_path)
         self.attribute_encoder = AttributeEncoder(channels, block_data_path)
 
-        self.pre_norm = Normalize(channels)
+        if self.additional_norm_layers:
+            self.pre_norm = Normalize(channels)
 
         self.num_layers = num_layers
         self.channels = channels
@@ -173,6 +177,7 @@ class Encoder(nn.Module):
                     ResnetBlock3D(
                         in_channels=block_in,
                         out_channels=block_out,
+                        post_norm_layer=self.additional_norm_layers,
                     )
                 )
                 block_in = block_out
@@ -191,11 +196,13 @@ class Encoder(nn.Module):
         self.mid.block_1 = ResnetBlock3D(
             in_channels=block_in,
             out_channels=block_in,
+            post_norm_layer=self.additional_norm_layers,
         )
         self.mid.attn_1 = AttnBlock(block_in)
         self.mid.block_2 = ResnetBlock3D(
             in_channels=block_in,
             out_channels=block_in,
+            post_norm_layer=self.additional_norm_layers,
         )
 
         # end
@@ -219,7 +226,8 @@ class Encoder(nn.Module):
 
         h = features.permute(0, 4, 1, 2, 3)  # (B, D, W, H, L)
 
-        h = self.pre_norm(h)
+        if self.additional_norm_layers:
+            h = self.pre_norm(h)
 
         # downsampling
         for i_level in range(self.num_layers):
@@ -278,7 +286,8 @@ class DCEncoder(Encoder):
 
         h = features.permute(0, 4, 1, 2, 3)  # (B, D, W, H, L)
 
-        h = self.pre_norm(h)
+        if self.additional_norm_layers:
+            h = self.pre_norm(h)
 
         # downsampling
         for i_level in range(self.num_layers):

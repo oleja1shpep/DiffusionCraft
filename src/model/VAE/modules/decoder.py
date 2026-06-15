@@ -153,6 +153,7 @@ class Decoder(nn.Module):
         attn_layers=[],
         block_data_path="src/block_data",
         use_pred_masks=False,
+        additional_norm_layers=True,
     ):
         """
         The class for DownSampling Block Grid into latents
@@ -172,6 +173,8 @@ class Decoder(nn.Module):
         self.z_channels = z_channels
         self.num_res_blocks = num_res_blocks
 
+        self.additional_norm_layers = additional_norm_layers
+
         block_in = channels * (2**num_layers)
 
         # z to block_in
@@ -184,11 +187,13 @@ class Decoder(nn.Module):
         self.mid.block_1 = ResnetBlock3D(
             in_channels=block_in,
             out_channels=block_in,
+            post_norm_layer=self.additional_norm_layers,
         )
         self.mid.attn_1 = AttnBlock(block_in)
         self.mid.block_2 = ResnetBlock3D(
             in_channels=block_in,
             out_channels=block_in,
+            post_norm_layer=self.additional_norm_layers,
         )
 
         # upsampling
@@ -199,7 +204,11 @@ class Decoder(nn.Module):
             block_out = channels * (2**i)
             for _ in range(num_res_blocks + 1):
                 block.append(
-                    ResnetBlock3D(in_channels=block_in, out_channels=block_out)
+                    ResnetBlock3D(
+                        in_channels=block_in,
+                        out_channels=block_out,
+                        post_norm_layer=self.additional_norm_layers,
+                    )
                 )
                 block_in = block_out
                 if i in attn_layers:
@@ -215,7 +224,9 @@ class Decoder(nn.Module):
         self.blocks_end = nn.Sequential(
             *[
                 ResnetBlock3D(
-                    in_channels=channels, out_channels=channels  # block_in = channels
+                    in_channels=channels,  # block_in = channels
+                    out_channels=channels,
+                    post_norm_layer=self.additional_norm_layers,
                 )
                 for _ in range(num_res_blocks + 1)
             ]

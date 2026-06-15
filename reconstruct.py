@@ -1,6 +1,7 @@
 import logging
 import os
 import warnings
+from pathlib import Path
 
 import hydra
 import torch
@@ -115,10 +116,13 @@ def main(config):
                 outputs["pred_attribures_masks"], outputs["attributes_logits"]
             )
 
+            out_name = Path(file)
+            out_name = f"{out_name.stem}_out{out_name.suffix}"
+
             create_schem(
                 outputs["pred_block_type_grid"][0].detach().cpu(),
                 pred_attributes_data,
-                output_path=output_dir / file,
+                output_path=output_dir / out_name,
                 block_data_dir=block_data_dir,
             )
     logger.info(f"Finished reconstruction of {config.input_dir}")

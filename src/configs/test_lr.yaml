@@ -21,7 +21,7 @@ loss_function:
   kl_weight: 0.000001
   feature_loss_type: null # L1 or L2
   feature_loss_weight: 1
-  block_weights: True
+  block_weights: False
   block_weights_power: 0.3
 trainer:
   mem_start: null
@@ -30,6 +30,7 @@ trainer:
   check_nan: False
   accumulation_steps: 8
   amp: 'no'
+  max_grad_norm: 1
   profile_train: False
   profile_val: False
   memory_snapshot: False

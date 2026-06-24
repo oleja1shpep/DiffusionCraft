@@ -1,43 +1,48 @@
 defaults:
-  - model: vae
+  - model: dcae
   - writer: cometml
   - metrics: vae
-  - datasets: vae #_onebatchtest
+  - datasets: vae
   - dataloader: vae
   - transforms: vae
   - _self_
 optimizer:
   _target_: torch.optim.AdamW
-  lr: 3e-4
+  lr: 3e-5
   weight_decay: 1e-5
+  eps: 1e-5
 lr_scheduler:
-  _target_: torch.optim.lr_scheduler.OneCycleLR
-  max_lr: ${optimizer.lr}
-  epochs: ${trainer.n_epochs}
-  steps_per_epoch: ${divide:${trainer.epoch_len},${trainer.accumulation_steps}}
-  pct_start: 0.1
+  _target_: torch.optim.lr_scheduler.LinearLR
+  start_factor: 0.001
+  total_iters: ${divide:1000,${trainer.accumulation_steps}}
 loss_function:
   _target_: src.loss.VAELoss
+  attr_loss_weight: 0.01
   kl_weight: 0.000001
   feature_loss_type: null # L1 or L2
   feature_loss_weight: 1
+  block_weights: False
+  block_weights_power: 0.3
 trainer:
-  log_step: 100
+  mem_start: null
+  mem_end: null
+  log_step: 1000
   check_nan: False
   accumulation_steps: 8
   amp: 'no'
+  max_grad_norm: 1
   profile_train: False
   profile_val: False
   memory_snapshot: False
   debug: False
-  n_epochs: 100
-  epoch_len: 1000
+  n_epochs: 30
+  epoch_len: 10000
   device_tensors: ["block_type_grid", "attributes_masks", "attributes_values"] # which tensors should be on device (ex. GPU)
   resume_from: null # null or path to the checkpoint dir with *.pth and config.yaml
   device: auto # device name or "auto"
   override: True # if True, will override the previous run with the same name
-  monitor: "max val_BlockTypeAccuracy" # "max test_MulticlassAccuracy" # "off" or "max/min metric_name", i.e. our goal is to maximize/minimize metric
-  save_period: 5 # checkpoint each save_period epochs in addition to the best epoch
+  monitor: "max val_mAP" # "max test_MulticlassAccuracy" # "off" or "max/min metric_name", i.e. our goal is to maximize/minimize metric
+  save_period: 3 # checkpoint each save_period epochs in addition to the best epoch
   early_stop: ${trainer.n_epochs} # epochs for early stopping
   save_dir: "saved"
   seed: 1

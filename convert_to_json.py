@@ -211,14 +211,34 @@ def convert_to_2d_layers_json(
             layer.append(row)
         layers_2d.append(layer)
 
-    result = {
+    # --- Специальная сериализация: каждый Z-ряд в одну строку ---
+    # Создаём структуру с плейсхолдерами для рядов
+    placeholder_layers = []
+    for y, layer in enumerate(layers_2d):
+        placeholder_layer = []
+        for z, row in enumerate(layer):
+            placeholder_layer.append(f"__ROW_{y}_{z}__")
+        placeholder_layers.append(placeholder_layer)
+
+    placeholder_result = {
         "palette": palette_dict,
         "size": {"width": width, "depth": depth, "height": height},
-        "layers": layers_2d,
+        "layers": placeholder_layers,
     }
 
+    # Стандартная сериализация с отступами (ряды пока в виде строк)
+    json_str = json.dumps(placeholder_result, ensure_ascii=False, indent=2)
+
+    # Заменяем каждый плейсхолдер на компактный JSON ряда
+    for y, layer in enumerate(layers_2d):
+        for z, row in enumerate(layer):
+            row_json = json.dumps(row, ensure_ascii=False)  # [0, 1, 2, 3]
+            placeholder = f'"__ROW_{y}_{z}__"'
+            json_str = json_str.replace(placeholder, row_json)
+
+    # Запись результата
     with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(result, f, ensure_ascii=False, indent=2)
+        f.write(json_str)
     print(f"Файл сохранён: {output_path}")
 
 

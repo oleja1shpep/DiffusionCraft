@@ -70,7 +70,7 @@
         "level": "0"
     },
     "minecraft:lava": {
-        "level": "15"
+        "level": "0"
     },
     "minecraft:light": {
         "level": "0"
@@ -79,7 +79,7 @@
         "level": "3"
     },
     "minecraft:water": {
-        "level": "15"
+        "level": "0"
     },
     "minecraft:water_cauldron": {
         "level": "3"

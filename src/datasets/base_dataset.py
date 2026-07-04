@@ -129,10 +129,7 @@ class BaseDataset(Dataset):
                 instance transform).
         """
         if self.instance_transforms is not None:
-            for transform_name in self.instance_transforms.keys():
-                instance_data[transform_name] = self.instance_transforms[
-                    transform_name
-                ](instance_data[transform_name])
+            instance_data = self.instance_transforms(instance_data)
         return instance_data
 
     @staticmethod

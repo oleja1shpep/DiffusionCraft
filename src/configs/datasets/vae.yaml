@@ -3,6 +3,7 @@ train:
   name: "train"
   mode: "synth"
   web_factor: 0
+  instance_transforms: ${transforms.instance_transforms.train}
 sub_train:
   _target_: src.datasets.VAEDataset
   name: "sub_train"

@@ -3,6 +3,7 @@ train:
   name: "train"
   mode: "mix"
   web_factor: 2
+  instance_transforms: ${transforms.instance_transforms.train}
 sub_train:
   _target_: src.datasets.VAEDataset
   name: "sub_train"

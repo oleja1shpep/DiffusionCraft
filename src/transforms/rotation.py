@@ -28,13 +28,20 @@ class Rotate(nn.Module):
         block_type_grid = items["block_type_grid"]
         attributes_masks = items["attributes_masks"]
 
+        rotation_angle = 0
+
         if torch.rand(1, device=block_type_grid.device) < self.p:
             k = torch.randint(0, 4, (1,), device=block_type_grid.device).item()
+            rotation_angle = k
             block_type_grid = torch.rot90(block_type_grid, k, dims=[0, 2])
             for head_key in attributes_masks:
                 attributes_masks[head_key] = torch.rot90(
                     attributes_masks[head_key], k, dims=[0, 2]
                 )
+
         items["block_type_grid"] = block_type_grid
         items["attributes_masks"] = attributes_masks
+        if "augmentations" not in items:
+            items["augmentations"] = dict()
+        items["augmentations"]["rotation"] = rotation_angle
         return items

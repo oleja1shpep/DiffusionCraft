@@ -27,7 +27,10 @@ class Flip(nn.Module):
         block_type_grid = items["block_type_grid"]
         attributes_masks = items["attributes_masks"]
 
+        flip_mask = torch.zeros(2).bool()
+
         if torch.rand(1, device=block_type_grid.device) < self.p:
+            flip_mask[0] = True
             block_type_grid = torch.flip(block_type_grid, dims=[0])
             for head_key in attributes_masks:
                 attributes_masks[head_key] = torch.flip(
@@ -35,6 +38,7 @@ class Flip(nn.Module):
                 )
 
         if torch.rand(1, device=block_type_grid.device) < self.p:
+            flip_mask[1] = True
             block_type_grid = torch.flip(block_type_grid, dims=[2])
             for head_key in attributes_masks:
                 attributes_masks[head_key] = torch.flip(
@@ -43,4 +47,7 @@ class Flip(nn.Module):
 
         items["block_type_grid"] = block_type_grid
         items["attributes_masks"] = attributes_masks
+        if "augmentations" not in items:
+            items["augmentations"] = dict()
+        items["augmentations"]["flip"] = flip_mask
         return items

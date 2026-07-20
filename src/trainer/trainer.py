@@ -63,6 +63,15 @@ class Trainer(BaseTrainer):
                 the dataloader (possibly transformed via batch transform),
                 model outputs, and losses.
         """
+
+        calc_debug_stats = False
+        if tracker is not None:
+            for met in tracker.metrics:
+                if (
+                    met.name == "Latents"
+                ):  # just check one name cause I'm kinda lazy to check everything
+                    calc_debug_stats = True
+
         # batch = self.move_batch_to_device(batch) # do not need while using accelerate
         batch = self.transform_batch(batch)  # transform batch on device -- faster
 
@@ -74,11 +83,18 @@ class Trainer(BaseTrainer):
 
         if self.is_train:
             with self.accelerator.accumulate(self.model):
-                with self.activation_stats() as layer_stats:
+                if calc_debug_stats:
+                    with self.activation_stats() as layer_stats:
+                        outputs = self.model(**batch, sample_posterior=self.is_train)
+                        batch.update(outputs)
+
+                        all_losses = self.criterion(**batch)
+                else:
                     outputs = self.model(**batch, sample_posterior=self.is_train)
                     batch.update(outputs)
 
                     all_losses = self.criterion(**batch)
+
                 batch.update(all_losses)
 
                 loss = batch["loss"].detach().item()
@@ -103,16 +119,18 @@ class Trainer(BaseTrainer):
                     self.lr_scheduler.step()
                 self.optimizer.zero_grad()
 
-                parameter_stats = self.get_parameter_stats()
-                opt_stats = self.get_aggregated_optimizer_stats()
+                if calc_debug_stats:
+                    parameter_stats = self.get_parameter_stats()
+                    opt_stats = self.get_aggregated_optimizer_stats()
 
                 if self.config.trainer.get("debug", False) and current_step > 610:
                     print("lr", self.lr_scheduler.get_last_lr()[0])
                     print("grad norm:", grad_norm)
 
-                    print("Parameter stats:")
-                    print("Weight:", *parameter_stats["weight"].items(), sep="\n\t")
-                    print("Bias:", *parameter_stats["bias"].items(), sep="\n\t")
+                    if calc_debug_stats:
+                        print("Parameter stats:")
+                        print("Weight:", *parameter_stats["weight"].items(), sep="\n\t")
+                        print("Bias:", *parameter_stats["bias"].items(), sep="\n\t")
 
                     print("Latents-mu:")
                     print(f"\tmax:{batch['latents'].mean.max().item()}")
@@ -127,16 +145,13 @@ class Trainer(BaseTrainer):
                     print(f"\tmax:{batch['block_type_logits'].max().item()}")
                     print(f"\tmin:{batch['block_type_logits'].min().item()}")
                     print(f"\tmean:{batch['block_type_logits'].mean().item()}")
-                    print("Optimizer stats:", opt_stats)
+                    if calc_debug_stats:
+                        print("Optimizer stats:", opt_stats)
 
                     if grad_norm > 7:
                         self.logger.debug(
                             f"Step: {current_step} | HIGH GRAD NORM: {grad_norm} | Batch Indexes: {batch['idxs']}"
                         )
-
-                        import pdb
-
-                        pdb.set_trace()
                 if self.accelerator.sync_gradients:
                     tracker.update(
                         "grad_norm",

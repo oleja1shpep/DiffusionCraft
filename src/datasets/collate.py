@@ -24,8 +24,22 @@ def collate_fn(dataset_items: list[dict], num_layers=3) -> dict:
     result_batch["block_type_grid"] = []
     result_batch["idxs"] = []
 
+    result_batch["augmentations"] = dict()
+    result_batch["augmentations"]["flip"] = []
+    result_batch["augmentations"]["rotation"] = []
+
     for item in dataset_items:
         result_batch["idxs"].append(item["idx"])
+
+        if "augmentations" in dataset_items[0]:
+            result_batch["augmentations"]["flip"].append(item["augmentations"]["flip"])
+            result_batch["augmentations"]["rotation"].append(
+                item["augmentations"]["rotation"]
+            )
+        else:
+            result_batch["augmentations"]["flip"].append(torch.zeros(2).bool())
+            result_batch["augmentations"]["rotation"].append(0)
+
         for key in item["attributes_masks"]:
             if key not in result_batch["attributes_masks"]:
                 result_batch["attributes_masks"][key] = []
@@ -124,5 +138,14 @@ def collate_fn(dataset_items: list[dict], num_layers=3) -> dict:
         result_batch["attributes_values"][key] = torch.concatenate(
             result_batch["attributes_values"][key]
         )  # just 1D tensor
+
+    # remember augmentations
+    if "augmentations" in result_batch:
+        result_batch["augmentations"]["flip"] = torch.vstack(
+            result_batch["augmentations"]["flip"]
+        ).bool()
+        result_batch["augmentations"]["rotation"] = torch.tensor(
+            result_batch["augmentations"]["rotation"], dtype=torch.int8
+        )
 
     return result_batch

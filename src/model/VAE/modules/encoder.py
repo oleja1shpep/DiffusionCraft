@@ -140,6 +140,7 @@ class Encoder(nn.Module):
         attn_layers=[],
         block_data_path="src/block_data",
         additional_norm_layers=True,
+        use_attribute_encoder=True,
     ):
         """
         The class for DownSampling Block Grid into latents
@@ -151,12 +152,17 @@ class Encoder(nn.Module):
             num_res_blocks (Int) : number of ResnetBlocks in downsampling.
             attn_layers (List) : idxs of layers with Attention
             block_data_path (str): path to the directory with block jsons.
+            additional_norm_layers (bool) : whether to apply more normalize layers or not
+            use_attribute_encoder (bool) : whether to include attribute features or not
         """
         super().__init__()
         self.additional_norm_layers = additional_norm_layers
+        self.use_attribute_encoder = use_attribute_encoder
 
         self.block_type_encoder = BlockTypeEncoder(channels, block_data_path)
-        self.attribute_encoder = AttributeEncoder(channels, block_data_path)
+
+        if use_attribute_encoder:
+            self.attribute_encoder = AttributeEncoder(channels, block_data_path)
 
         if self.additional_norm_layers:
             self.pre_norm = Normalize(channels)
@@ -220,9 +226,10 @@ class Encoder(nn.Module):
         Returns:
             latents (Tensor): a tensor of shape (B, z_dim * 2, w, h, l)
         """
-        features = self.block_type_encoder(**batch) + self.attribute_encoder(
-            **batch
-        )  # (B, W, H, L, D)
+        features = self.block_type_encoder(**batch)  # (B, W, H, L, D)
+
+        if self.use_attribute_encoder:
+            features = features + self.attribute_encoder(**batch)
 
         h = features.permute(0, 4, 1, 2, 3)  # (B, D, W, H, L)
 
@@ -280,9 +287,10 @@ class DCEncoder(Encoder):
         Returns:
             latents (Tensor): a tensor of shape (B, z_dim * 2, w, h, l)
         """
-        features = self.block_type_encoder(**batch) + self.attribute_encoder(
-            **batch
-        )  # (B, W, H, L, D)
+        features = self.block_type_encoder(**batch)  # (B, W, H, L, D)
+
+        if self.use_attribute_encoder:
+            features = features + self.attribute_encoder(**batch)
 
         h = features.permute(0, 4, 1, 2, 3)  # (B, D, W, H, L)
 

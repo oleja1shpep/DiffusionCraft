@@ -195,6 +195,20 @@ class AttributeAccuracy(BaseMetric):
 
         return result
 
+    def unaugment_tensor(self, x: torch.Tensor, augmentations: dict):
+        B = x.size(0)
+        for i in range(B):
+            k = (4 - augmentations["rotation"][i]) % 4
+            x[i] = torch.rot90(x[i], k, dims=[0, 2]).contiguous()
+
+        flip_mask1 = augmentations["flip"][:, 1]
+        x[flip_mask1] = torch.flip(x[flip_mask1], dims=[2]).contiguous()
+
+        flip_mask0 = augmentations["flip"][:, 0]
+        x[flip_mask0] = torch.flip(x[flip_mask0], dims=[0]).contiguous()
+
+        return x
+
     def __call__(
         self,
         block_type_grid: torch.Tensor,
@@ -202,6 +216,7 @@ class AttributeAccuracy(BaseMetric):
         attributes_masks: dict[str, torch.Tensor],
         pred_block_type_grid: torch.Tensor,
         attributes_logits: dict[str, torch.Tensor],
+        augmentations: dict,
         **batch
     ):
         """
@@ -216,7 +231,10 @@ class AttributeAccuracy(BaseMetric):
 
         # if apply this mask on attr mask it will leave only valid connections between gt and pred attributes
         if self.block_equality:
-            block_equality_mask = block_type_grid == pred_block_type_grid
+            # remove augmentations
+            block_equality_mask = self.unaugment_tensor(
+                block_type_grid == pred_block_type_grid, augmentations
+            )
 
         result = []
         for head_key in attributes_values:

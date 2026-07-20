@@ -1,3 +1,5 @@
+from typing import Any
+
 import torch
 from torch import nn
 
@@ -7,24 +9,33 @@ from src.model.VAE.modules.layers import (
     ResnetBlock3D,
     nonlinearity,
 )
+from src.model.VAE.modules.neck import AttributeNeck
 from src.utils.io_utils import ROOT_PATH, read_json
 from src.utils.model_utils import get_head_key
 
 
 class AttributeDecoder(nn.Module):
     def __init__(
-        self, emb_dim=256, block_data_path="src/block_data", use_pred_masks=False
+        self,
+        emb_dim=256,
+        block_data_path="src/block_data",
+        use_pred_masks=False,
+        use_attribute_decoder_neck=False,
     ):
         """
         The class for block attribute encoder
 
         Args:
-            block_data_path (str): path to the directory with block jsons.
+            emb_dim (int) : the dimension of features
+            block_data_path (str) : path to the directory with block jsons
+            use_pred_masks (bool) : whether to recalculate attribute masks
+            use_attribute_decoder_neck (bool) : if set to True adds additional neck to attribute decoder
         """
         super().__init__()
 
         self.D = emb_dim
         self.use_pred_masks = use_pred_masks
+        self.use_attribute_decoder_neck = use_attribute_decoder_neck
 
         self.non_default_attribute_pairs = read_json(
             ROOT_PATH / block_data_path / "non_default_attribute_pairs.json"
@@ -48,6 +59,9 @@ class AttributeDecoder(nn.Module):
                 self.attr_pair2idxs[key], dtype=torch.long
             )
 
+        if use_attribute_decoder_neck:
+            self.neck = AttributeNeck(emb_dim, num_blocks=1)
+
         self.heads = nn.ModuleDict()
 
         for pair in self.non_default_attribute_pairs:
@@ -60,6 +74,7 @@ class AttributeDecoder(nn.Module):
         features: torch.Tensor,
         pred_block_type_grid: torch.Tensor,
         attributes_masks: dict[str, torch.Tensor],
+        augmentations: dict[str, Any],
         **batch,
     ) -> list[dict[str, dict[str, torch.Tensor]]]:
         """
@@ -68,10 +83,52 @@ class AttributeDecoder(nn.Module):
         Args:
             features (Tensor): a tensor of shape (B, W, H, L, D) consisting of block features.
             pred_block_type_grid (Tensor) : a tensor of shape (B, W, H, L) consisting of block type ids.
-            attributes_masks (Dict): a dict of masks for each <attr, values> pair.
+            attributes_masks (Dict) : a dict of masks for each <attr, values> pair.
+            augmentations (Dict) : a dict of augmentations
         Returns:
             attributes_logits (Dict): a dict of attribute logits for each <attr, values> pair.
         """
+
+        # revert the augmentations
+        not_augmented_features = torch.empty_like(features)
+        not_augmented_attributes_masks = {
+            head_key: torch.empty_like(m) for head_key, m in attributes_masks.items()
+        }
+
+        # rotation first (because it is last in augs)
+        B = not_augmented_features.size(0)
+        for i in range(B):
+            k = (4 - augmentations["rotation"][i]) % 4
+            not_augmented_features[i] = torch.rot90(features[i], k, dims=[0, 2])
+            # rotate the masks so that they correspond to the feature tensor
+            for head_key in attributes_masks:
+                not_augmented_attributes_masks[head_key][i] = torch.rot90(
+                    attributes_masks[head_key][i], k, dims=[0, 2]
+                )
+
+        # flip last (because it is first in augs)
+        flip_mask1 = augmentations["flip"][:, 1]
+        not_augmented_features[flip_mask1] = torch.flip(
+            not_augmented_features[flip_mask1], dims=[2]
+        )
+
+        flip_mask0 = augmentations["flip"][:, 0]
+        not_augmented_features[flip_mask0] = torch.flip(
+            not_augmented_features[flip_mask0], dims=[0]
+        )
+
+        # flip the masks so that they correspond to the feature tensor
+        for head_key in not_augmented_attributes_masks:
+            not_augmented_attributes_masks[head_key][flip_mask1] = torch.flip(
+                not_augmented_attributes_masks[head_key][flip_mask1], dims=[2]
+            )
+            not_augmented_attributes_masks[head_key][flip_mask0] = torch.flip(
+                not_augmented_attributes_masks[head_key][flip_mask0], dims=[0]
+            )
+
+        # if use neck apply it
+        if self.use_attribute_decoder_neck:
+            not_augmented_features = self.neck(not_augmented_features)
 
         # for each pair <attr, values> get logits of shape (N, len(values))
         attributes_logits = dict()  # attr-pair : values
@@ -83,7 +140,7 @@ class AttributeDecoder(nn.Module):
             head_key = get_head_key(attr, values)
 
             # use GT masks for loss to work. For metrics will use gt-pred block equality mask
-            mask = attributes_masks[head_key]
+            mask = not_augmented_attributes_masks[head_key]
 
             # if use Pred masks, then no metrics can be calculated. But the reconstruction is accurate
             if self.use_pred_masks:
@@ -92,10 +149,12 @@ class AttributeDecoder(nn.Module):
                 )
                 mask = pred_attributes_masks[head_key]
 
-            attr_logits = self.heads[head_key](features[mask])  # (N, len(values))
+            attr_logits = self.heads[head_key](
+                not_augmented_features[mask]
+            )  # (N, len(values))
             attributes_logits[head_key] = attr_logits
 
-        return attributes_logits, pred_attributes_masks
+        return attributes_logits, pred_attributes_masks, not_augmented_attributes_masks
 
 
 class BlockTypeDecoder(nn.Module):
@@ -154,6 +213,8 @@ class Decoder(nn.Module):
         block_data_path="src/block_data",
         use_pred_masks=False,
         additional_norm_layers=True,
+        detach_attribute_decoder=False,
+        use_attribute_decoder_neck=False,
     ):
         """
         The class for DownSampling Block Grid into latents
@@ -166,6 +227,9 @@ class Decoder(nn.Module):
             attn_layers (List) : idxs of layers with Attention
             block_data_path (str): path to the directory with block jsons.
             use_pred_masks (bool) : whether to calc masks on pred_block_grid
+            additional_norm_layers (bool) : whether to apply more normalize layers or not
+            detach_attribute_decoder (bool) : if set to True then attribute decoder is detached from VAE calculations graph
+            use_attribute_decoder_neck (bool) :  if set to True adds additional neck to attribute decoder
         """
         super().__init__()
         self.num_layers = num_layers
@@ -174,6 +238,7 @@ class Decoder(nn.Module):
         self.num_res_blocks = num_res_blocks
 
         self.additional_norm_layers = additional_norm_layers
+        self.detach_attribute_decoder = detach_attribute_decoder
 
         block_in = channels * (2**num_layers)
 
@@ -235,10 +300,11 @@ class Decoder(nn.Module):
 
         self.block_type_decoder = BlockTypeDecoder(channels, block_data_path)
         self.attribute_decoder = AttributeDecoder(
-            channels, block_data_path, use_pred_masks=use_pred_masks
+            emb_dim=channels,
+            block_data_path=block_data_path,
+            use_pred_masks=use_pred_masks,
+            use_attribute_decoder_neck=use_attribute_decoder_neck,
         )
-
-        self.upsample_block = nn.Identity()
 
     def forward(self, z: torch.Tensor, **batch):
         """
@@ -270,19 +336,23 @@ class Decoder(nn.Module):
         h = self.norm_out(h)
         h = nonlinearity(h)  # (B, D, W, H, L)
 
-        h = h.permute(0, 2, 3, 4, 1)  # (B, W, H, L, D)
+        h: torch.Tensor = h.permute(0, 2, 3, 4, 1)  # (B, W, H, L, D)
 
         block_type_logits = self.block_type_decoder(h)  # (B, W, H, L, num_blocks)
         pred_block_type_grid = block_type_logits.argmax(-1)
-        attributes_logits, pred_attributes_masks = self.attribute_decoder(
-            h, pred_block_type_grid, **batch
-        )
+        attribute_features = h.detach() if self.detach_attribute_decoder else h
+        (
+            attributes_logits,
+            pred_attributes_masks,
+            not_augmented_attributes_masks,
+        ) = self.attribute_decoder(attribute_features, pred_block_type_grid, **batch)
         return (
             block_type_logits,
             pred_block_type_grid,
             attributes_logits,
             pred_attributes_masks,
             h,
+            not_augmented_attributes_masks,
         )
 
 
@@ -338,17 +408,21 @@ class DCDecoder(Decoder):
         h = self.norm_out(h)
         h = nonlinearity(h)  # (B, D, W, H, L)
 
-        h = h.permute(0, 2, 3, 4, 1)  # (B, W, H, L, D)
+        h: torch.Tensor = h.permute(0, 2, 3, 4, 1)  # (B, W, H, L, D)
 
         block_type_logits = self.block_type_decoder(h)  # (B, W, H, L, num_blocks)
         pred_block_type_grid = block_type_logits.argmax(-1)
-        attributes_logits, pred_attributes_masks = self.attribute_decoder(
-            h, pred_block_type_grid, **batch
-        )
+        attribute_features = h.detach() if self.detach_attribute_decoder else h
+        (
+            attributes_logits,
+            pred_attributes_masks,
+            not_augmented_attributes_masks,
+        ) = self.attribute_decoder(attribute_features, pred_block_type_grid, **batch)
         return (
             block_type_logits,
             pred_block_type_grid,
             attributes_logits,
             pred_attributes_masks,
             h,
+            not_augmented_attributes_masks,
         )

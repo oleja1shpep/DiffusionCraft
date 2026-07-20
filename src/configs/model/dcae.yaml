@@ -7,3 +7,6 @@ attn_layers: []
 use_pred_masks: False
 posterior_mode: null
 additional_norm_layers: True
+use_attribute_encoder: True
+detach_attribute_decoder: False
+use_attribute_decoder_neck: False

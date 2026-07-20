@@ -21,6 +21,9 @@ class SDVAE(nn.Module):
         use_pred_masks=False,
         posterior_mode=None,
         additional_norm_layers=True,
+        use_attribute_encoder=True,
+        detach_attribute_decoder=False,
+        use_attribute_decoder_neck=False,
     ):
         """
         Args:
@@ -32,6 +35,9 @@ class SDVAE(nn.Module):
             use_pred_masks (bool) : whether to calc masks on pred_block_grid
             posterior_mode (str) : 'sample' or 'mode'. Overrides sample_posterior arguement if forward
             additional_norm_layers (bool) : whether to apply more normalize layers or not
+            use_attribute_encoder (bool) : whether to include attribute features or not
+            detach_attribute_decoder (bool) : if set to True then attribute decoder is detached from VAE calculations graph
+            use_attribute_decoder_neck (bool) :  if set to True adds additional neck to attribute decoder
         """
         super().__init__()
         self.posterior_mode = posterior_mode
@@ -43,6 +49,7 @@ class SDVAE(nn.Module):
             num_res_blocks,
             attn_layers,
             additional_norm_layers=additional_norm_layers,
+            use_attribute_encoder=use_attribute_encoder,
         )
         self.decoder = Decoder(
             channels,
@@ -52,6 +59,8 @@ class SDVAE(nn.Module):
             attn_layers,
             use_pred_masks=use_pred_masks,
             additional_norm_layers=additional_norm_layers,
+            detach_attribute_decoder=detach_attribute_decoder,
+            use_attribute_decoder_neck=use_attribute_decoder_neck,
         )
 
         self.quant_conv = nn.Conv3d(z_channels * 2, z_channels * 2, 1)
@@ -103,12 +112,14 @@ class SDVAE(nn.Module):
             attributes_logits,
             pred_attributes_masks,
             pred_features,
+            attributes_masks,
         ) = self.decode(z, **batch)
 
         return {
             "block_type_logits": block_type_logits,
             "attributes_logits": attributes_logits,
             "pred_attribures_masks": pred_attributes_masks,
+            "attributes_masks": attributes_masks,
             "pred_block_type_grid": pred_block_type_grid,
             "latents": posterior,
             "gt_features": gt_features,
@@ -142,6 +153,9 @@ class DCAE(nn.Module):
         use_pred_masks=False,
         posterior_mode=None,
         additional_norm_layers=True,
+        use_attribute_encoder=True,
+        detach_attribute_decoder=False,
+        use_attribute_decoder_neck=False,
     ):
         """
         Args:
@@ -153,6 +167,9 @@ class DCAE(nn.Module):
             use_pred_masks (bool) : whether to calc masks on pred_block_grid
             posterior_mode (str) : 'sample' or 'mode'. Overrides sample_posterior arguement if forward
             additional_norm_layers (bool) : whether to apply more normalize layers or not
+            use_attribute_encoder (bool) : whether to include attribute features or not
+            detach_attribute_decoder (bool) : if set to True then attribute decoder is detached from VAE calculations graph
+            use_attribute_decoder_neck (bool) :  if set to True adds additional neck to attribute decoder
         """
         super().__init__()
         self.posterior_mode = posterior_mode
@@ -164,6 +181,7 @@ class DCAE(nn.Module):
             num_res_blocks,
             attn_layers,
             additional_norm_layers=additional_norm_layers,
+            use_attribute_encoder=use_attribute_encoder,
         )
         self.decoder = DCDecoder(
             channels,
@@ -173,13 +191,16 @@ class DCAE(nn.Module):
             attn_layers,
             use_pred_masks=use_pred_masks,
             additional_norm_layers=additional_norm_layers,
+            detach_attribute_decoder=detach_attribute_decoder,
+            use_attribute_decoder_neck=use_attribute_decoder_neck,
         )
 
     def post_init(self, device):
-        for key in self.encoder.attribute_encoder.attr_pair2idxs:
-            self.encoder.attribute_encoder.attr_pair2idxs[
-                key
-            ] = self.encoder.attribute_encoder.attr_pair2idxs[key].to(device)
+        if self.encoder.use_attribute_encoder:
+            for key in self.encoder.attribute_encoder.attr_pair2idxs:
+                self.encoder.attribute_encoder.attr_pair2idxs[
+                    key
+                ] = self.encoder.attribute_encoder.attr_pair2idxs[key].to(device)
 
         for key in self.decoder.attribute_decoder.attr_pair2idxs:
             self.decoder.attribute_decoder.attr_pair2idxs[
@@ -220,12 +241,14 @@ class DCAE(nn.Module):
             attributes_logits,
             pred_attributes_masks,
             pred_features,
+            attributes_masks,
         ) = self.decode(z, **batch)
 
         return {
             "block_type_logits": block_type_logits,
             "attributes_logits": attributes_logits,
             "pred_attribures_masks": pred_attributes_masks,
+            "attributes_masks": attributes_masks,
             "pred_block_type_grid": pred_block_type_grid,
             "latents": posterior,
             "gt_features": gt_features,

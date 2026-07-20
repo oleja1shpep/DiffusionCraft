@@ -3,7 +3,11 @@ import re
 from pathlib import Path
 from typing import Dict, Tuple
 
-from src.utils.schem_utils import _initFromFile
+import numpy as np
+
+from src.utils.io_utils import read_json
+from src.utils.model_utils import save_block_grid_renders
+from src.utils.schem_utils import _initFromFile, block_to_idx, parse_block
 
 
 def simplify_block_name(name: str) -> str:
@@ -242,6 +246,33 @@ def convert_to_2d_layers_json(
     print(f"Файл сохранён: {output_path}")
 
 
+def build_block_type_grid(
+    coord2byte: Dict[Tuple[int, int, int], int],
+    palette: Dict[int, str],
+    block2idx: dict[str, int],
+) -> np.ndarray:
+    """Build (W, H, L) block index grid from schematic data using global block2idx."""
+    if not coord2byte:
+        raise ValueError("coord2byte не может быть пустым")
+
+    xs, ys, zs = zip(*coord2byte.keys())
+    min_x, max_x = min(xs), max(xs)
+    min_y, max_y = min(ys), max(ys)
+    min_z, max_z = min(zs), max(zs)
+    width = max_x - min_x + 1
+    height = max_y - min_y + 1
+    length = max_z - min_z + 1
+
+    grid = np.zeros((width, height, length), dtype=np.int32)
+    for (x, y, z), byte_idx in coord2byte.items():
+        block_str = palette[byte_idx]
+        block_name, _ = parse_block(block_str)
+        _, block_idx, _ = block_to_idx(block_name, block2idx)
+        grid[x - min_x, y - min_y, z - min_z] = block_idx
+
+    return grid
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -268,6 +299,16 @@ if __name__ == "__main__":
         default="rle",
         help="Режим работы скрипта: 'rle' слои или '2d' слои",
     )
+    parser.add_argument(
+        "--render",
+        action="store_true",
+        help="Сохранить рендеры постройки",
+    )
+    parser.add_argument(
+        "--block-data-dir",
+        default="src/block_data",
+        help="Путь к block_data для idx2block/block2color",
+    )
     args = parser.parse_args()
 
     input_path = Path(args.input)
@@ -275,7 +316,7 @@ if __name__ == "__main__":
         print(f"Ошибка: файл '{args.input}' не найден")
         exit(1)
 
-    output_path = args.output if args.output else input_path.stem + ".json"
+    output_path = Path(args.output if args.output else input_path.stem + ".json")
 
     try:
         coord2byte, palette = _initFromFile(str(input_path))
@@ -285,11 +326,23 @@ if __name__ == "__main__":
 
     if args.mode == "rle":
         convert_to_rle_json(
-            coord2byte, palette, output_path, ignore_attributes=args.ignore_attrs
+            coord2byte, palette, str(output_path), ignore_attributes=args.ignore_attrs
         )
     elif args.mode == "2d":
         convert_to_2d_layers_json(
-            coord2byte, palette, output_path, ignore_attributes=args.ignore_attrs
+            coord2byte, palette, str(output_path), ignore_attributes=args.ignore_attrs
         )
     else:
         print(f"No such mode: {args.mode}")
+        exit(1)
+
+    if args.render:
+        block_data_dir = Path(args.block_data_dir)
+        idx2block = read_json(block_data_dir / "idx2block.json")
+        block2color = read_json(block_data_dir / "block2color.json")
+        block2idx = read_json(block_data_dir / "block2idx.json")
+
+        render_dir = output_path.parent / output_path.stem
+        grid = build_block_type_grid(coord2byte, palette, block2idx)
+        save_block_grid_renders(grid, block2color, idx2block, render_dir)
+        print(f"Рендеры сохранены: {render_dir}")

@@ -3,7 +3,9 @@ import torch
 from src.utils.model_utils import AIR_BLOCK_IDX
 
 
-def collate_fn(dataset_items: list[dict], num_layers=3) -> dict:
+def collate_fn(
+    dataset_items: list[dict], num_layers=3, is_width_eq_length=False
+) -> dict:
     """
     Collate and pad fields in the dataset items.
     Converts individual items into a batch.
@@ -11,6 +13,8 @@ def collate_fn(dataset_items: list[dict], num_layers=3) -> dict:
     Args:
         dataset_items (list[dict]): list of objects from
             dataset.__getitem__.
+        num_layers (Int) : a number of downsample layers in VAE, needed for proper padding
+        is_width_eq_length (bool) : if set to true then pad so that in final tensor width=length. Vital for rotation augmentation
     Returns:
         result_batch (dict[Tensor]): dict, containing batch-version
             of the tensors.
@@ -58,7 +62,12 @@ def collate_fn(dataset_items: list[dict], num_layers=3) -> dict:
 
         result_batch["block_type_grid"].append(item["block_type_grid"])
 
-    scale_factor = 2**num_layers
+    if is_width_eq_length:
+        # make width = length (for rotation aug)
+        max_width = max(max_width, max_length)
+        max_length = max_width
+
+    scale_factor = 2**num_layers  # for padding
     max_width += (scale_factor - max_width % scale_factor) % scale_factor
     max_height += (scale_factor - max_height % scale_factor) % scale_factor
     max_length += (scale_factor - max_length % scale_factor) % scale_factor

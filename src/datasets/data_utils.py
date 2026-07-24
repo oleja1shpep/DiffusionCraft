@@ -79,7 +79,11 @@ def get_dataloaders(config, device):
         partition_dataloader = instantiate(
             config.dataloader,
             dataset=dataset,
-            collate_fn=lambda x: collate_fn(x, config.model.num_layers),
+            collate_fn=lambda x: collate_fn(
+                dataset_items=x,
+                num_layers=config.model.num_layers,
+                is_width_eq_length=config.trainer.collate_is_width_eq_length,
+            ),
             drop_last=(dataset_partition == "train"),
             sampler=VAESampler(dataset=dataset)
             if (dataset_partition == "train")

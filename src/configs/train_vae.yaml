@@ -24,6 +24,7 @@ loss_function:
   block_weights: False
   block_weights_power: 0.3
 trainer:
+  collate_is_width_eq_length: False
   mem_start: null
   mem_end: null
   log_step: 1000

@@ -4,14 +4,15 @@ from torch import nn
 
 class Rotate(nn.Module):
     """
-    Batch-version of Normalize for 1D Input.
-    Used as an example of a batch transform.
+    Rotate the 3D tensor of blocks (and attribute masks) for 0, 90, 180 or 270 dergees
+
+    FIXME: works properly only if collate is initialised with is_width_eq_length=True
     """
 
     def __init__(self, p=0.5):
         """
         Args:
-            p (float): a probability of flip.
+            p (float): a probability of rotation.
         """
         super().__init__()
 

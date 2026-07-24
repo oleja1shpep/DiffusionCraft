@@ -128,7 +128,9 @@ class AttributeDecoder(nn.Module):
 
         # if use neck apply it
         if self.use_attribute_decoder_neck:
-            not_augmented_features = self.neck(not_augmented_features)
+            not_augmented_features = self.neck(
+                not_augmented_features.permute(0, 4, 1, 2, 3)
+            ).permute(0, 2, 3, 4, 1)
 
         # for each pair <attr, values> get logits of shape (N, len(values))
         attributes_logits = dict()  # attr-pair : values
